@@ -1,0 +1,175 @@
+@import url('https://fonts.googleapis.com/css2?family=Pirata+One&family=Montserrat:wght@700&display=swap');
+
+html, body, #root {
+  width: 100vw;
+  height: 100vh;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+  min-height: 0;
+  box-sizing: border-box;
+}
+
+
+.treasure-bg {
+  min-height: 100vh;
+  background: linear-gradient(135deg, #ffecd2 0%, #fcb69f 100%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+}
+
+.game-title {
+  font-family: 'Pirata One', cursive;
+  color: #4a2c06;
+  text-align: center;
+  font-size: 2.6rem;
+  letter-spacing: 2px;
+  margin: 32px 0 18px 0;
+  text-shadow: 1px 2px 0 #fff7c2, 0 0 8px #bb8c2b;
+}
+
+.game-board {
+  margin: 0 auto 28px auto;
+  display: inline-block;
+  border: 4px solid #bb8c2b;
+  border-radius: 18px;
+  background: rgba(255,255,255,0.92);
+  box-shadow: 0 8px 32px rgba(122, 79, 19, 0.18);
+  padding: 16px 16px 10px 16px;
+  max-width: 95vw;
+  max-height: 70vh;
+  overflow: auto;
+}
+
+@media (max-width: 900px) {
+  .game-board {
+    max-width: 100vw;
+    max-height: 55vw;
+    padding: 3vw;
+  }
+}
+
+.clue-panel {
+  max-width: 480px;
+  width: 95vw;
+  margin: 0 auto;
+  background: #fffbe6;
+  padding: 22px 30px;
+  border-radius: 16px;
+  box-shadow: 0 0 12px 2px #f8dca5;
+  font-family: 'Montserrat', sans-serif;
+  margin-bottom: 16px;
+}
+
+.clue-text {
+  color: #5a3e1b;
+  font-weight: bold;
+  font-size: 1.2rem;
+  background: #fffbe6;
+  border: 1.5px solid #bb8c2b;
+  border-radius: 8px;
+  padding: 12px 16px;
+  margin: 0;
+}
+
+.clue-label {
+  color: #d35400;
+  font-family: 'Pirata One', cursive;
+  font-size: 1.17em;
+}
+
+.riddle-title {
+  color: #f39c12;
+  font-family: 'Pirata One', cursive;
+  margin-bottom: 10px;
+  font-size: 1.3rem;
+}
+.riddle-text {
+  font-style: italic;
+  font-size: 1.18rem;
+  color: #2d2d2d;
+  background: #fffbe6;
+  padding: 13px;
+  border-radius: 8px;
+  border: 1.5px solid #bb8c2b;
+  margin-bottom: 12px;
+  line-height: 1.5;
+}
+.riddle-input {
+  width: 100%;
+  padding: 11px;
+  font-size: 1.08rem;
+  border-radius: 8px;
+  border: 1.5px solid #bbb;
+  margin-top: 6px;
+  margin-bottom: 3px;
+  outline: none;
+  transition: border 0.2s;
+}
+.riddle-input.error {
+  border: 2px solid #e74c3c;
+}
+.riddle-btn {
+  margin-top: 10px;
+  width: 100%;
+  padding: 13px;
+  background: linear-gradient(90deg, #ffb347 0%, #ffcc33 100%);
+  color: #4a2c06;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: bold;
+  font-size: 1.08rem;
+  box-shadow: 0 2px 8px rgba(122, 79, 19, 0.10);
+  transition: background 0.2s, transform 0.2s;
+}
+.riddle-btn:hover {
+  background: linear-gradient(90deg, #ffcc33 0%, #ffb347 100%);
+  transform: scale(1.04);
+}
+.riddle-error {
+  color: #e74c3c;
+  margin: 7px 0 0 0;
+  font-weight: 600;
+}
+
+.winner-msg {
+  color: #4a7c0c;
+  text-align: center;
+  font-size: 1.3rem;
+  font-family: 'Montserrat', sans-serif;
+  margin: 0;
+}
+
+.controls {
+  max-width: 400px;
+  margin: 24px auto 0 auto;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.move-btn {
+  padding: 13px 18px;
+  font-size: 1.2rem;
+  border-radius: 10px;
+  border: 2px solid #bb8c2b;
+  background: linear-gradient(90deg, #fff6b7 0%, #f9d423 100%);
+  color: #4a2c06;
+  font-weight: bold;
+  cursor: pointer;
+  margin: 0 5px;
+  transition: background 0.2s, transform 0.2s;
+  box-shadow: 0 2px 8px rgba(122, 79, 19, 0.07);
+}
+.move-btn:hover {
+  background: linear-gradient(90deg, #f9d423 0%, #fff6b7 100%);
+  transform: scale(1.09);
+}
+.move-hint {
+  font-size: 0.97rem;
+  margin-left: 15px;
+  color: #888;
+}
