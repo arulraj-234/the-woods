@@ -78,7 +78,27 @@ export default function App() {
   const [riddleError, setRiddleError] = useState(false);
 
   const currentCheckpoint = randomCheckpoints[progress];
-  const currentCheckpointLoc = landmarks[currentCheckpoint];
+
+  // Move player
+  const movePlayer = useCallback((dx, dy) => {
+    if (winner || showRiddle) return;
+    const [x, y] = position;
+    const nx = Math.max(0, Math.min(GRID_SIZE - 1, x + dx));
+    const ny = Math.max(0, Math.min(GRID_SIZE - 1, y + dy));
+    if (nx === x && ny === y) return;
+    setPosition([nx, ny]);
+
+    // Check if reached any checkpoint in the order
+    for (let i = 0; i < randomCheckpoints.length; i++) {
+      const cpLoc = landmarks[randomCheckpoints[i]];
+      if (nx === cpLoc[0] && ny === cpLoc[1] && i === progress) {
+        setShowRiddle(true);
+        setRiddleError(false);
+        setRiddleInput("");
+        return;
+      }
+    }
+  }, [winner, showRiddle, position, progress, randomCheckpoints]);
 
   // Keyboard movement (fixed directions)
   const handleKeyDown = useCallback(
@@ -101,34 +121,13 @@ export default function App() {
           break;
       }
     },
-    [winner, showRiddle, position, progress]
+    [winner, showRiddle, movePlayer]
   );
 
   useEffect(() => {
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [handleKeyDown]);
-
-  // Move player
-  function movePlayer(dx, dy) {
-    if (winner || showRiddle) return;
-    const [x, y] = position;
-    const nx = Math.max(0, Math.min(GRID_SIZE - 1, x + dx));
-    const ny = Math.max(0, Math.min(GRID_SIZE - 1, y + dy));
-    if (nx === x && ny === y) return;
-    setPosition([nx, ny]);
-
-    // Check if reached any checkpoint in the order
-    for (let i = 0; i < randomCheckpoints.length; i++) {
-      const cpLoc = landmarks[randomCheckpoints[i]];
-      if (nx === cpLoc[0] && ny === cpLoc[1] && i === progress) {
-        setShowRiddle(true);
-        setRiddleError(false);
-        setRiddleInput("");
-        return;
-      }
-    }
-  }
 
   // Submit riddle answer
   function handleRiddleSubmit() {
@@ -160,21 +159,15 @@ export default function App() {
       transition: "background 0.2s, box-shadow 0.2s",
       boxShadow: "0 1px 4px rgba(0,0,0,0.07)",
     };
-    let content = null;
+    let cellContent = [];
 
-    // Player
-    if (position[0] === x && position[1] === y) {
-      style.background = "linear-gradient(135deg, #a8ff78 0%, #78ffd6 100%)";
-      style.boxShadow = "0 0 12px 2px #6cf2d2";
-      content = <span style={{ fontSize: 26, filter: "drop-shadow(0 1px 2px #333)" }}>🙂</span>;
-    }
-
-    // All checkpoints as images, highlight the current one
+    // Checkpoint
     randomCheckpoints.forEach((cp, idx) => {
       const [cx, cy] = landmarks[cp];
       if (cx === x && cy === y) {
-        content = (
+        cellContent.push(
           <img
+            key="checkpoint"
             src={checkpointImages[cp]}
             alt="Checkpoint"
             style={{
@@ -195,9 +188,22 @@ export default function App() {
       }
     });
 
+    // Player
+    if (position[0] === x && position[1] === y) {
+      style.background = "linear-gradient(135deg, #a8ff78 0%, #78ffd6 100%)";
+      style.boxShadow = "0 0 12px 2px #6cf2d2";
+      const playerStyle = {
+        fontSize: 26,
+        filter: "drop-shadow(0 1px 2px #333)",
+        position: cellContent.length > 0 ? "absolute" : "static",
+        zIndex: 2
+      };
+      cellContent.push(<span key="player" style={playerStyle}>🙂</span>);
+    }
+
     return (
       <div key={`${x}-${y}`} style={style} title={x + "," + y}>
-        {content}
+        {cellContent}
       </div>
     );
   }
