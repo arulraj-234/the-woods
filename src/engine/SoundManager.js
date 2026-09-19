@@ -33,6 +33,8 @@ class SoundManager {
         this.lastHunterAlert = 0;
         this.lastGhostStalk = 0;
         this.lastDeflectSound = 0;
+        this.lastButtonHover = 0;
+        this.lastButtonClick = 0;
 
         // Target volumes for smooth fades
         this.currentScreen = 'menu'; // 'menu' | 'game'
@@ -377,6 +379,136 @@ class SoundManager {
             gain.connect(ctx.destination);
             osc.start(t);
             osc.stop(t + 0.4);
+        } catch {}
+    }
+
+    // --- UI & Button Audio Synthesis ---
+
+    playButtonClick(variant = 'default') {
+        if (!this.sfxEnabled) return;
+        const now = Date.now();
+        if (now - this.lastButtonClick < 35) return;
+        this.lastButtonClick = now;
+
+        try {
+            const ctx = this.getAudioContext();
+            if (!ctx) return;
+            const t = ctx.currentTime;
+
+            if (variant === 'heavy') {
+                // Punchy low-end impact + metallic edge for major start/confirm buttons
+                const oscLow = ctx.createOscillator();
+                const gainLow = ctx.createGain();
+                oscLow.type = 'triangle';
+                oscLow.frequency.setValueAtTime(140, t);
+                oscLow.frequency.exponentialRampToValueAtTime(38, t + 0.12);
+                gainLow.gain.setValueAtTime(0.48 * this.masterVolume, t);
+                gainLow.gain.exponentialRampToValueAtTime(0.001, t + 0.14);
+                oscLow.connect(gainLow);
+                gainLow.connect(ctx.destination);
+                oscLow.start(t);
+                oscLow.stop(t + 0.15);
+
+                const oscHigh = ctx.createOscillator();
+                const gainHigh = ctx.createGain();
+                oscHigh.type = 'sine';
+                oscHigh.frequency.setValueAtTime(680, t);
+                oscHigh.frequency.exponentialRampToValueAtTime(220, t + 0.08);
+                gainHigh.gain.setValueAtTime(0.25 * this.masterVolume, t);
+                gainHigh.gain.exponentialRampToValueAtTime(0.001, t + 0.09);
+                oscHigh.connect(gainHigh);
+                gainHigh.connect(ctx.destination);
+                oscHigh.start(t);
+                oscHigh.stop(t + 0.1);
+            } else if (variant === 'toggle') {
+                // Crisp click for toggles & settings
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(520, t);
+                osc.frequency.exponentialRampToValueAtTime(260, t + 0.05);
+                gain.gain.setValueAtTime(0.32 * this.masterVolume, t);
+                gain.gain.exponentialRampToValueAtTime(0.001, t + 0.06);
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+                osc.start(t);
+                osc.stop(t + 0.07);
+            } else {
+                // Default tactile dark-fantasy wooden/mechanical click
+                const oscClick = ctx.createOscillator();
+                const gainClick = ctx.createGain();
+                oscClick.type = 'triangle';
+                oscClick.frequency.setValueAtTime(380, t);
+                oscClick.frequency.exponentialRampToValueAtTime(90, t + 0.06);
+                gainClick.gain.setValueAtTime(0.38 * this.masterVolume, t);
+                gainClick.gain.exponentialRampToValueAtTime(0.001, t + 0.07);
+                oscClick.connect(gainClick);
+                gainClick.connect(ctx.destination);
+                oscClick.start(t);
+                oscClick.stop(t + 0.08);
+
+                // High snap transient
+                const snap = ctx.createOscillator();
+                const snapGain = ctx.createGain();
+                snap.type = 'sine';
+                snap.frequency.setValueAtTime(950, t);
+                snap.frequency.exponentialRampToValueAtTime(300, t + 0.025);
+                snapGain.gain.setValueAtTime(0.2 * this.masterVolume, t);
+                snapGain.gain.exponentialRampToValueAtTime(0.001, t + 0.03);
+                snap.connect(snapGain);
+                snapGain.connect(ctx.destination);
+                snap.start(t);
+                snap.stop(t + 0.035);
+            }
+        } catch {}
+    }
+
+    playButtonHover() {
+        if (!this.sfxEnabled) return;
+        const now = Date.now();
+        if (now - this.lastButtonHover < 65) return;
+        this.lastButtonHover = now;
+
+        try {
+            const ctx = this.getAudioContext();
+            if (!ctx) return;
+            const t = ctx.currentTime;
+
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(420, t);
+            osc.frequency.linearRampToValueAtTime(460, t + 0.05);
+
+            gain.gain.setValueAtTime(0.001, t);
+            gain.gain.linearRampToValueAtTime(0.12 * this.masterVolume, t + 0.015);
+            gain.gain.exponentialRampToValueAtTime(0.001, t + 0.08);
+
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.start(t);
+            osc.stop(t + 0.09);
+        } catch {}
+    }
+
+    playCharacterSwitch() {
+        if (!this.sfxEnabled) return;
+        try {
+            const ctx = this.getAudioContext();
+            if (!ctx) return;
+            const t = ctx.currentTime;
+
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(280, t);
+            osc.frequency.exponentialRampToValueAtTime(540, t + 0.07);
+            gain.gain.setValueAtTime(0.28 * this.masterVolume, t);
+            gain.gain.exponentialRampToValueAtTime(0.001, t + 0.1);
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.start(t);
+            osc.stop(t + 0.11);
         } catch {}
     }
 

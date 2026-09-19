@@ -221,6 +221,50 @@ export default function App() {
     };
   }, [screen, settings]);
 
+  // Global Button Click & Hover Audio Feedback
+  useEffect(() => {
+    const handleClick = (e) => {
+      const btn = e.target.closest(
+        'button, .topbar-btn, .start-btn, .action-btn, .landing-play-btn, .stage-arrow-btn, .tab-btn, .character-card'
+      );
+      if (btn) {
+        if (
+          btn.classList.contains('primary') ||
+          btn.classList.contains('landing-play-btn') ||
+          btn.classList.contains('restart-btn') ||
+          btn.classList.contains('start-game-btn') ||
+          btn.classList.contains('confirm-btn')
+        ) {
+          soundManager.playButtonClick('heavy');
+        } else if (btn.classList.contains('topbar-btn') || btn.type === 'checkbox') {
+          soundManager.playButtonClick('toggle');
+        } else {
+          soundManager.playButtonClick('default');
+        }
+      }
+    };
+
+    const handleMouseOver = (e) => {
+      const btn = e.target.closest(
+        'button, .topbar-btn, .start-btn, .action-btn, .landing-play-btn, .stage-arrow-btn, .tab-btn, .character-card'
+      );
+      if (btn && !btn.dataset.hoverSoundPlayed) {
+        soundManager.playButtonHover();
+        btn.dataset.hoverSoundPlayed = 'true';
+        setTimeout(() => {
+          delete btn.dataset.hoverSoundPlayed;
+        }, 120);
+      }
+    };
+
+    window.addEventListener('click', handleClick);
+    window.addEventListener('mouseover', handleMouseOver);
+    return () => {
+      window.removeEventListener('click', handleClick);
+      window.removeEventListener('mouseover', handleMouseOver);
+    };
+  }, []);
+
   const handleNameChange = (e) => {
     const val = e.target.value.slice(0, 16);
     setPlayerName(val);
@@ -254,12 +298,14 @@ export default function App() {
   };
 
   const prevCharacter = () => {
+    soundManager.playCharacterSwitch();
     setCharSelectIndex((prev) =>
       prev > 0 ? prev - 1 : CHARACTER_ROSTER.length - 1
     );
   };
 
   const nextCharacter = () => {
+    soundManager.playCharacterSwitch();
     setCharSelectIndex((prev) =>
       prev < CHARACTER_ROSTER.length - 1 ? prev + 1 : 0
     );
