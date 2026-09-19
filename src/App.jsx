@@ -479,7 +479,7 @@ export default function App() {
               </div>
 
               <div className="char-select-layout">
-                {/* Left Column: Character Stage */}
+                {/* Left Column: Freestanding Survivor Stage (Zero Boxes) */}
                 <div className="char-stage-column">
                   <div className="char-stage-frame">
                     <button
@@ -499,7 +499,7 @@ export default function App() {
                       />
                     ) : (
                       <div className="char-portrait-placeholder">
-                        <svg width="48" height="48" viewBox="0 0 24 24" fill="currentColor">
+                        <svg width="60" height="60" viewBox="0 0 24 24" fill="currentColor">
                           <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z" />
                         </svg>
                       </div>
@@ -516,36 +516,9 @@ export default function App() {
                       &gt;
                     </button>
                   </div>
-
-                  {/* Thumbnail Selector Strip */}
-                  <div className="char-thumbs-strip">
-                    {CHARACTER_ROSTER.map((char, idx) => {
-                      const isCurrent = idx === charSelectIndex;
-                      const thumb = assets.getCharacterThumb(char.id);
-                      return (
-                        <button
-                          key={char.id}
-                          className={`char-thumb-btn ${isCurrent ? "active" : ""}`}
-                          onClick={() => setCharSelectIndex(idx)}
-                          title={`${char.name} (${char.title})`}
-                          aria-label={char.name}
-                        >
-                          {thumb ? (
-                            <img
-                              src={thumb}
-                              alt={char.name}
-                              className="char-thumb-img"
-                            />
-                          ) : (
-                            <span>{char.name[0]}</span>
-                          )}
-                        </button>
-                      );
-                    })}
-                  </div>
                 </div>
 
-                {/* Right Column: Character Dossier */}
+                {/* Right Column: Clean Character Dossier (Zero Boxes) */}
                 <div className="char-dossier-column">
                   <div className="char-dossier-header">
                     <h3 className="char-dossier-name">{previewChar.name}</h3>
@@ -553,64 +526,70 @@ export default function App() {
                     <p className="char-dossier-tagline">"{previewChar.tagline}"</p>
                   </div>
 
-                  <div className="char-dossier-perk-card">
+                  <div className="char-dossier-perk-block">
                     <div className="dossier-perk-title">{previewChar.perkTitle}</div>
                     <p className="dossier-perk-desc">{previewChar.perkDesc}</p>
                   </div>
 
                   <div className="char-dossier-stats">
-                    <div className="stat-pill">
+                    <div className="stat-row">
                       <span className="stat-label">Movement Speed</span>
+                      <span className="stat-dots" />
                       <span className="stat-val">
                         {Math.round(previewChar.perk.speedMult * 100)}%
                       </span>
                     </div>
-                    <div className="stat-pill">
+                    <div className="stat-row">
                       <span className="stat-label">Sprint Burst</span>
+                      <span className="stat-dots" />
                       <span className="stat-val">
                         +{Math.round((previewChar.perk.sprintMult - 1) * 100)}%
                       </span>
                     </div>
-                    <div className="stat-pill">
+                    <div className="stat-row">
                       <span className="stat-label">Fuel Burn Rate</span>
+                      <span className="stat-dots" />
                       <span className="stat-val">
                         {Math.round(previewChar.perk.fuelBurn * 100)}%
                       </span>
                     </div>
-                    <div className="stat-pill">
+                    <div className="stat-row">
                       <span className="stat-label">Sanctuary Ward</span>
+                      <span className="stat-dots" />
                       <span className="stat-val">
                         +{Math.round((previewChar.perk.wardRadius - 1) * 100)}%
                       </span>
                     </div>
-                    <div className="stat-pill">
+                    <div className="stat-row">
                       <span className="stat-label">Threat Sense</span>
+                      <span className="stat-dots" />
                       <span className="stat-val">{previewChar.perk.threatRange} px</span>
                     </div>
-                    <div className="stat-pill">
+                    <div className="stat-row">
                       <span className="stat-label">Torch Bonus</span>
+                      <span className="stat-dots" />
                       <span className="stat-val">+{previewChar.perk.torchBonus} pts</span>
                     </div>
                   </div>
 
                   <div className="char-dossier-actions">
                     <button
-                      className="start-btn confirm-char-btn"
+                      className="dossier-action-btn dossier-btn-confirm"
                       onClick={() => confirmCharacterSelection(false)}
                     >
                       CONFIRM SURVIVOR
                     </button>
                     <button
-                      className="start-btn pulse-btn"
+                      className="dossier-action-btn dossier-btn-enter"
                       onClick={() => confirmCharacterSelection(true)}
                     >
                       ENTER THE WOODS
                     </button>
                   </div>
 
-                  <div style={{ textAlign: "center", marginTop: 4 }}>
+                  <div className="char-dossier-footer">
                     <button
-                      className="topbar-btn"
+                      className="dossier-back-btn"
                       onClick={() =>
                         setScreen(selectOrigin === "landing" ? "landing" : "base_camp")
                       }

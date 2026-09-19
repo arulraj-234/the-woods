@@ -188,7 +188,13 @@ class AssetManager {
             environment: '/assets/environment.png',
             phantom_portrait: '/assets/phantom_portrait.jpg',
             phantom_raw: '/assets/phantom_stalker.jpg',
-            characters_raw: '/assets/characters.jpg'
+            characters_raw: '/assets/characters.jpg',
+            char_survivor: '/characters/vance.svg',
+            char_rogue: '/characters/lyra.svg',
+            char_hunter: '/characters/gideon.svg',
+            char_warrior: '/characters/rowan.svg',
+            char_redhood: '/characters/scarlet.svg',
+            char_brawler: '/characters/torin.svg'
         };
 
         const promises = Object.entries(assetUrls).map(([key, url]) => {
@@ -204,6 +210,11 @@ class AssetManager {
                             console.warn('Phantom transparency processing failed, using raw image', e);
                             this.images['phantom'] = img;
                         }
+                    } else if (key === 'char_survivor') {
+                        this.images[key] = img;
+                        this.images['player'] = img;
+                    } else if (key.startsWith('char_')) {
+                        this.images[key] = img;
                     } else if (key === 'characters_raw') {
                         try {
                             // Extract Character Sprites:
@@ -220,14 +231,13 @@ class AssetManager {
                             // Col 2, Row 1: Red hood fighter
                             const redHoodSprite = extractCharacterSprite(img, 2, 1);
 
-                            this.images['player'] = playerSprite;
                             this.images['hunter'] = hunterSprite;
-                            this.images['char_survivor'] = playerSprite;
-                            this.images['char_hunter'] = hunterSprite;
-                            this.images['char_brawler'] = brawlerSprite;
-                            this.images['char_warrior'] = warriorSprite;
-                            this.images['char_rogue'] = rogueSprite;
-                            this.images['char_redhood'] = redHoodSprite;
+                            if (!this.images['char_survivor']) this.images['char_survivor'] = playerSprite;
+                            if (!this.images['char_hunter']) this.images['char_hunter'] = hunterSprite;
+                            if (!this.images['char_brawler']) this.images['char_brawler'] = brawlerSprite;
+                            if (!this.images['char_warrior']) this.images['char_warrior'] = warriorSprite;
+                            if (!this.images['char_rogue']) this.images['char_rogue'] = rogueSprite;
+                            if (!this.images['char_redhood']) this.images['char_redhood'] = redHoodSprite;
 
                             const rosterMap = {
                                 char_survivor: playerSprite,
@@ -270,7 +280,15 @@ class AssetManager {
     }
 
     getCharacterThumb(id) {
-        return this.characterThumbs[id] || null;
+        const svgMap = {
+            char_survivor: '/characters/vance.svg',
+            char_rogue: '/characters/lyra.svg',
+            char_hunter: '/characters/gideon.svg',
+            char_warrior: '/characters/rowan.svg',
+            char_redhood: '/characters/scarlet.svg',
+            char_brawler: '/characters/torin.svg'
+        };
+        return svgMap[id] || this.characterThumbs[id] || null;
     }
 }
 
