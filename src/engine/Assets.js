@@ -299,9 +299,9 @@ export const CHARACTER_ROSTER = [
         title: 'The Survivor',
         tagline: 'Rugged frontiersman with an indomitable spirit.',
         perkTitle: 'Resolute Walker',
-        perkDesc: 'Balanced survival traits with solid baseline stats.',
+        perkDesc: 'Balanced survival traits: +5% speed, +15% fuel efficiency, and +20 bonus torch fuel.',
         unlocked: true,
-        perk: { speedMult: 1.0, fuelBurn: 1.0, sprintMult: 1.45, wardRadius: 1.0, threatRange: 450, torchBonus: 0 }
+        perk: { speedMult: 1.05, fuelBurn: 0.85, sprintMult: 1.48, wardRadius: 1.0, threatRange: 450, torchBonus: 0, torchFuelBonus: 20 }
     },
     {
         id: 'char_rogue',
@@ -309,9 +309,9 @@ export const CHARACTER_ROSTER = [
         title: 'The Shadow Walker',
         tagline: 'Swift scout trained to outrun what lurks in the mist.',
         perkTitle: 'Ghost Fleet',
-        perkDesc: '+15% Sprint Speed boost. Outruns phantoms with ease.',
+        perkDesc: '+12% Walk Speed & +18% Sprint Burst. Burns 30% less sprint fuel and slips past phantoms.',
         unlocked: true,
-        perk: { speedMult: 1.06, fuelBurn: 1.0, sprintMult: 1.65, wardRadius: 1.0, threatRange: 450, torchBonus: 0 }
+        perk: { speedMult: 1.12, fuelBurn: 1.0, sprintMult: 1.68, sprintBurnMult: 1.25, wardRadius: 1.0, threatRange: 450, torchBonus: 0, ghostStealth: true }
     },
     {
         id: 'char_hunter',
@@ -319,9 +319,9 @@ export const CHARACTER_ROSTER = [
         title: 'The Woodsman',
         tagline: 'Seasoned tracker who knows how to nurse a flickering flame.',
         perkTitle: 'Ember Keeper',
-        perkDesc: '+20% Torch Fuel efficiency. Torch burns 20% slower.',
+        perkDesc: 'Torch burns 30% slower. Picks up torches from further away (+35% range) with +40 bonus fuel.',
         unlocked: true,
-        perk: { speedMult: 1.0, fuelBurn: 0.80, sprintMult: 1.45, wardRadius: 1.0, threatRange: 450, torchBonus: 0 }
+        perk: { speedMult: 1.0, fuelBurn: 0.70, sprintMult: 1.45, wardRadius: 1.0, threatRange: 450, torchBonus: 0, torchFuelBonus: 40, pickupRangeMult: 1.35 }
     },
     {
         id: 'char_warrior',
@@ -329,9 +329,9 @@ export const CHARACTER_ROSTER = [
         title: 'The Vanguard',
         tagline: 'Holy sentinel sworn to defend ancient consecration stones.',
         perkTitle: 'Aegis Ward',
-        perkDesc: '+20% Ring of Protection radius. Broader sanctuary.',
+        perkDesc: '+40% larger Ring of Protection radius. While inside sanctuary, torch fuel steadily regenerates!',
         unlocked: true,
-        perk: { speedMult: 1.0, fuelBurn: 1.0, sprintMult: 1.45, wardRadius: 1.22, threatRange: 450, torchBonus: 0 }
+        perk: { speedMult: 1.0, fuelBurn: 1.0, sprintMult: 1.45, wardRadius: 1.40, threatRange: 450, torchBonus: 0, sanctuaryHeal: true }
     },
     {
         id: 'char_redhood',
@@ -339,19 +339,19 @@ export const CHARACTER_ROSTER = [
         title: 'The Crimson Tracker',
         tagline: 'Her senses are sharpened by generations surviving in the dark.',
         perkTitle: 'Predator Sight',
-        perkDesc: 'Senses threat chevrons and eyes in the dark from further away (550px).',
+        perkDesc: 'Heightened senses: Detects stalker chevrons up to 650px away, reveals predator eyes at 600px, and pulses an amber radar ping.',
         unlocked: true,
-        perk: { speedMult: 1.0, fuelBurn: 1.0, sprintMult: 1.45, wardRadius: 1.0, threatRange: 550, torchBonus: 0 }
+        perk: { speedMult: 1.02, fuelBurn: 0.95, sprintMult: 1.48, wardRadius: 1.0, threatRange: 650, eyeRange: 600, torchBonus: 0, radarPing: true }
     },
     {
         id: 'char_brawler',
         name: 'Torin',
         title: 'The Ironclad',
         tagline: 'A fearless wanderer fueled by the thrill of the hunt.',
-        perkTitle: 'Trophy Hunter',
-        perkDesc: 'Gains +5 bonus score for every torch collected (+20 total).',
+        perkTitle: 'Iron Resolve & Bounty',
+        perkDesc: '+15 bonus score per torch (+30 total!). Iron Resolve: Deflects and knocks back the first lethal blow every 35s!',
         unlocked: true,
-        perk: { speedMult: 1.0, fuelBurn: 1.0, sprintMult: 1.45, wardRadius: 1.0, threatRange: 450, torchBonus: 5 }
+        perk: { speedMult: 0.98, fuelBurn: 1.05, sprintMult: 1.42, wardRadius: 1.0, threatRange: 450, torchBonus: 15, ironStun: true }
     }
 ];
 

@@ -9,9 +9,9 @@ const MAX_FUEL = 1000;
 const FUEL_DECAY = 0.45;
 
 const LEVEL_CONFIGS = [
-    { level: 1, minScore: 0, title: 'THE WHISPERING WOODS', hunters: 4, ghosts: 0, speedMult: 1.0 },
-    { level: 2, minScore: 35, title: 'THE CRIMSON THICKET', hunters: 6, ghosts: 0, speedMult: 1.08 },
-    { level: 3, minScore: 80, title: 'THE HAUNTED GROVE', hunters: 6, ghosts: 2, speedMult: 1.15 },
+    { level: 1, minScore: 0, title: 'THE WHISPERING WOODS', hunters: 4, ghosts: 1, speedMult: 1.0 },
+    { level: 2, minScore: 35, title: 'THE CRIMSON THICKET', hunters: 5, ghosts: 2, speedMult: 1.08 },
+    { level: 3, minScore: 80, title: 'THE HAUNTED GROVE', hunters: 6, ghosts: 3, speedMult: 1.15 },
     { level: 4, minScore: 140, title: 'THE ANCIENT RUINS', hunters: 8, ghosts: 4, speedMult: 1.22 },
     { level: 5, minScore: 220, title: 'THE ENDLESS NIGHTMARE', hunters: 10, ghosts: 6, speedMult: 1.30 }
 ];
@@ -57,9 +57,12 @@ export default function GameCanvas({
             x: 0, y: 0, r: 14,
             w: 24, h: 24,
             angle: 0,
+            facing: 1, // 1 for right, -1 for left (prevents rapid vertical flip jitter)
+            walkPhase: 0, // distance-based walk accumulator
             fuel: MAX_FUEL,
             dead: false,
-            moving: false
+            moving: false,
+            isSprinting: false
         },
         camera: { x: 0, y: 0 },
         enemies: [], // { id, x, y, r, angle, state, timer, type: 'hunter'|'ghost', alpha }
@@ -69,10 +72,12 @@ export default function GameCanvas({
         currentLevel: level,
         levelBannerTimer: 0,
         levelBannerText: '',
-        portalFrame: 0
+        portalFrame: 0,
+        lastDeflectTime: -9999, // Cooldown timer for Torin's Iron Resolve
+        inSanctuary: false
     });
 
-    // Audio helper for heartbeat and level up
+    // Audio helper for heartbeat, level up, refuel, and deflect
     const playSound = (type, intensity = 1) => {
         if (settings && settings.sfxEnabled === false) return;
         const masterVol = (settings && typeof settings.volume === 'number') ? settings.volume : 0.8;
@@ -132,6 +137,20 @@ export default function GameCanvas({
                 gain.connect(ctx.destination);
                 osc.start(t);
                 osc.stop(t + 0.24);
+            } else if (type === 'deflect') {
+                // Heavy metallic parry & shockwave chime
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                osc.type = 'triangle';
+                const t = ctx.currentTime;
+                osc.frequency.setValueAtTime(820, t);
+                osc.frequency.exponentialRampToValueAtTime(140, t + 0.35);
+                gain.gain.setValueAtTime(0.45 * masterVol, t);
+                gain.gain.exponentialRampToValueAtTime(0.001, t + 0.38);
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+                osc.start(t);
+                osc.stop(t + 0.4);
             }
         } catch {
             // Audio silent fallback
@@ -257,6 +276,13 @@ export default function GameCanvas({
         const isMoving = (dx !== 0 || dy !== 0);
         state.player.moving = isMoving;
 
+        // Facing direction: only update when horizontal direction is intentional (prevents 60Hz vertical jitter)
+        if (dx > 0.05) {
+            state.player.facing = 1;
+        } else if (dx < -0.05) {
+            state.player.facing = -1;
+        }
+
         // Sprint Mechanic: Holding Shift/Space with sufficient fuel
         const isSprinting = isMoving && input.isSprinting() && state.player.fuel > 30;
         state.player.isSprinting = isSprinting;
@@ -266,6 +292,7 @@ export default function GameCanvas({
 
         if (isMoving) {
             state.player.angle = Math.atan2(dy, dx);
+            state.player.walkPhase += playerSpeed * 0.07;
             phys.moveEntity(state.player, dx, dy, playerSpeed);
 
             // Sprint dust & ember trail
@@ -282,11 +309,28 @@ export default function GameCanvas({
             }
         }
 
-        // 4. Torch Fuel & Embers (Sprint burns extra fuel, modulated by character perk)
+        // 4. Torch Fuel & Embers (Sprint burns extra fuel, modulated by Lyra's / character perk)
+        const sprintBurnMult = (perk.sprintBurnMult || 1.8);
         const fuelDecay = isSprinting
-            ? FUEL_DECAY * 1.8 * (perk.fuelBurn || 1.0)
+            ? FUEL_DECAY * sprintBurnMult * (perk.fuelBurn || 1.0)
             : FUEL_DECAY * (perk.fuelBurn || 1.0);
         state.player.fuel -= fuelDecay;
+
+        // Rowan's Vanguard perk: Fuel steadily regenerates while inside consecrated sanctuary!
+        if (state.inSanctuary && perk.sanctuaryHeal) {
+            state.player.fuel = Math.min(MAX_FUEL, state.player.fuel + 1.2);
+            if (Math.random() < 0.3) {
+                state.particles.push({
+                    x: state.player.x + (Math.random() - 0.5) * 20,
+                    y: state.player.y + (Math.random() - 0.5) * 15,
+                    dx: (Math.random() - 0.5) * 0.5,
+                    dy: -Math.random() * 1.5 - 0.5,
+                    life: 25,
+                    color: '#FFF59D',
+                    size: Math.random() * 2.5 + 1.2
+                });
+            }
+        }
 
         if (state.player.fuel <= 0) {
             state.player.fuel = 0;
@@ -365,11 +409,14 @@ export default function GameCanvas({
         state.inSanctuary = inSanctuary;
 
         // 6. Object Interactions (Torches, Shrines & Portals)
+        const torchPickupDist = 65 * (perk.pickupRangeMult || 1.0);
         visibleObjects.forEach(obj => {
             if (obj.hasTorch) {
                 const dist = Math.hypot(obj.x - state.player.x, obj.y - state.player.y);
-                if (dist < 65) {
-                    state.player.fuel = Math.min(MAX_FUEL, state.player.fuel + 500);
+                if (dist < torchPickupDist) {
+                    // Balanced fuel refill: +135 base fuel (+ Vance / Gideon bonuses)
+                    const fuelGain = 135 + (perk.torchFuelBonus || 0);
+                    state.player.fuel = Math.min(MAX_FUEL, state.player.fuel + fuelGain);
                     obj.hasTorch = false;
                     spawnParticles(obj.x, obj.y - 15, '#FFA500', 12);
                     playSound('refuel');
@@ -415,7 +462,6 @@ export default function GameCanvas({
                     });
 
                     playSound('levelup');
-                    // No score awarded for safe points / shrines as requested
                 }
             } else if (obj.isPortal && !obj.portalUsed) {
                 const dist = Math.hypot(obj.x - state.player.x, obj.y - state.player.y);
@@ -424,15 +470,51 @@ export default function GameCanvas({
                     state.player.fuel = MAX_FUEL;
                     spawnParticles(obj.x, obj.y - 30, '#00FFFF', 25);
                     playSound('levelup');
-                    // No score awarded for safe points / portals as requested
                 }
             }
         });
 
-        // 7. Enemy AI (Hunters & Ghosts)
+        // 7. Enemy AI (Hunters & Ghosts) - Restored Threat & Survival Tension
         const config = LEVEL_CONFIGS[Math.min(state.currentLevel - 1, LEVEL_CONFIGS.length - 1)];
         const speedMult = config.speedMult;
         let minThreatDist = 9999;
+
+        // Torin's Iron Resolve / Lethal Blow Handler
+        const handleLethalContact = (enemy) => {
+            if (inSanctuary || state.player.dead) return;
+
+            const deflectCooldown = 35 * 60; // 35s cooldown
+            if (perk.ironStun && (state.time - state.lastDeflectTime >= deflectCooldown)) {
+                state.lastDeflectTime = state.time;
+                const knockAngle = Math.atan2(enemy.y - state.player.y, enemy.x - state.player.x);
+                enemy.x += Math.cos(knockAngle) * 120;
+                enemy.y += Math.sin(knockAngle) * 120;
+                enemy.state = 'patrol';
+                enemy.timer = 140; // 2.3s stunned
+                playSound('deflect');
+                state.levelBannerText = 'IRON RESOLVE DEFLECTED LETHAL ATTACK!';
+                state.levelBannerTimer = 140;
+
+                // Golden iron deflection shockwave
+                for (let i = 0; i < 30; i++) {
+                    const a = (i / 30) * Math.PI * 2;
+                    const spd = 2 + Math.random() * 5;
+                    state.particles.push({
+                        x: state.player.x,
+                        y: state.player.y - 10,
+                        dx: Math.cos(a) * spd,
+                        dy: Math.sin(a) * spd,
+                        life: 35,
+                        color: i % 2 === 0 ? '#FFD700' : '#FFFFFF',
+                        size: Math.random() * 3.5 + 2
+                    });
+                }
+                return;
+            }
+
+            state.player.dead = true;
+            if (callbacksRef.current.onGameOver) callbacksRef.current.onGameOver();
+        };
 
         state.enemies.forEach(e => {
             const distToPlayer = Math.hypot(e.x - state.player.x, e.y - state.player.y);
@@ -469,20 +551,23 @@ export default function GameCanvas({
             }
 
             if (e.type === 'ghost') {
-                // --- GHOST / PHANTOM AI (Only phantoms can phase through obstacles!) ---
+                // --- GHOST / PHANTOM AI (Phases through trees/rocks, eerie spectral stalker) ---
                 e.alpha = 0.35 + Math.sin(state.time * 0.08 + e.id) * 0.3;
 
-                // Ghost detection range: reduced to 220px so they don't aggro before illuminated
-                if (distToPlayer < 220) {
+                // Lyra's Ghost Stealth: phantoms only detect her at 140px vs 250px!
+                const ghostDetectRange = perk.ghostStealth ? 140 : 250;
+
+                if (distToPlayer < ghostDetectRange) {
                     e.state = 'chase';
                     const angleToPlayer = Math.atan2(state.player.y - e.y, state.player.x - e.x);
                     e.angle = angleToPlayer;
 
-                    // Obstacle Drag: phantoms suffer 25% drag while gliding inside physical obstacles
+                    // Obstacle Drag: phantoms suffer slight drag while gliding through solid obstacles
                     const insideObstacle = phys.checkCollisionCircle(e.x, e.y, 12);
-                    const obstacleDrag = insideObstacle ? 0.75 : 1.0;
+                    const obstacleDrag = insideObstacle ? 0.78 : 1.0;
 
-                    const ghostSpeed = 1.35 * speedMult * obstacleDrag;
+                    // Ghost Chase Speed: 2.55 * speedMult (Fast and supernatural)
+                    const ghostSpeed = 2.55 * speedMult * obstacleDrag;
                     e.x += Math.cos(e.angle) * ghostSpeed;
                     e.y += Math.sin(e.angle) * ghostSpeed;
 
@@ -501,22 +586,21 @@ export default function GameCanvas({
                 } else {
                     e.state = 'patrol';
                     // Drift slowly in current angle
-                    e.x += Math.cos(e.angle) * 0.6;
-                    e.y += Math.sin(e.angle) * 0.6;
+                    e.x += Math.cos(e.angle) * 0.8;
+                    e.y += Math.sin(e.angle) * 0.8;
                     if (Math.random() < 0.02) e.angle += (Math.random() - 0.5) * 1.5;
                 }
 
-                // Lethal contact with player (warded if standing in Ring of Protection)
+                // Lethal contact with player (deflectable by Torin, warded by Sanctuary)
                 if (distToPlayer < 28) {
-                    if (!inSanctuary && !state.player.dead) {
-                        state.player.dead = true;
-                        if (callbacksRef.current.onGameOver) callbacksRef.current.onGameOver();
-                    }
+                    handleLethalContact(e);
                 }
             } else {
-                // --- HUNTER AI (Physical: Slowed down, BLOCKED by Trees & Rocks) ---
-                const hunterChaseSpeed = 1.35 * speedMult; // Slowed down from 2.2
-                const hunterPatrolSpeed = 0.55; // Slowed down from 0.9
+                // --- HUNTER AI (Physical: Dangerous, relentless, but BLOCKED by trees & rocks!) ---
+                // Player walks at 4.0 and sprints at 5.8-7.0. Hunter chases at 3.35 * speedMult.
+                // Walking leaves the hunter hot on your heels; sprinting or dodging around trees lets you escape!
+                const hunterChaseSpeed = 3.35 * speedMult;
+                const hunterPatrolSpeed = 1.1;
 
                 if (e.state === 'patrol') {
                     const dx = Math.cos(e.angle);
@@ -527,9 +611,9 @@ export default function GameCanvas({
                         e.angle = Math.random() * Math.PI * 2;
                     }
 
-                    if (distToPlayer < 230 && state.player.fuel > 0) {
+                    if (distToPlayer < 290 && state.player.fuel > 0) {
                         e.state = 'alert';
-                        e.timer = 22;
+                        e.timer = 16;
                         e.angle = Math.atan2(state.player.y - e.y, state.player.x - e.x);
                         spawnParticles(e.x, e.y, '#FF3333', 4);
                     }
@@ -550,20 +634,17 @@ export default function GameCanvas({
                     if (!moved) {
                         const slideAngle1 = e.angle + 0.9;
                         const slideAngle2 = e.angle - 0.9;
-                        const s1 = phys.moveEntity(e, Math.cos(slideAngle1), Math.sin(slideAngle1), hunterChaseSpeed * 0.8);
+                        const s1 = phys.moveEntity(e, Math.cos(slideAngle1), Math.sin(slideAngle1), hunterChaseSpeed * 0.85);
                         if (!s1) {
-                            phys.moveEntity(e, Math.cos(slideAngle2), Math.sin(slideAngle2), hunterChaseSpeed * 0.8);
+                            phys.moveEntity(e, Math.cos(slideAngle2), Math.sin(slideAngle2), hunterChaseSpeed * 0.85);
                         }
                     }
 
-                    if (distToPlayer > 440) e.state = 'patrol';
+                    if (distToPlayer > 560) e.state = 'patrol';
 
-                    // Lethal contact with player (warded if standing in Ring of Protection)
+                    // Lethal contact with player (deflectable by Torin, warded by Sanctuary)
                     if (distToPlayer < 30) {
-                        if (!inSanctuary && !state.player.dead) {
-                            state.player.dead = true;
-                            if (callbacksRef.current.onGameOver) callbacksRef.current.onGameOver();
-                        }
+                        handleLethalContact(e);
                     }
                 }
             }
@@ -622,8 +703,8 @@ export default function GameCanvas({
             // Floating bob wave
             const floatBob = Math.sin(gameState.current.time * 0.12 + x) * 4;
 
-            // Flip facing based on movement direction (left/right)
-            const flip = Math.cos(angle) < 0 ? -1 : 1;
+            // Flip facing based on movement direction (left/right, with deadzone to eliminate oscillation)
+            const flip = Math.cos(angle) < -0.05 ? -1 : 1;
             ctx.scale(flip, 1);
 
             // Ethereal spectral opacity
@@ -686,16 +767,17 @@ export default function GameCanvas({
             ctx.ellipse(0, 3, 16, 7.5, 0, 0, Math.PI * 2);
             ctx.fill();
 
-            // 2. Facing direction flip (left or right based on heading)
-            const facingLeft = Math.cos(angle) < 0;
-            const flip = facingLeft ? -1 : 1;
-            ctx.scale(flip, 1);
+            // 2. Facing direction flip (smooth horizontal facing, eliminates 60Hz vertical flip jitter)
+            const facing = isPlayer
+                ? (gameState.current.player.facing || 1)
+                : (Math.cos(angle) < -0.05 ? -1 : 1);
+            ctx.scale(facing, 1);
 
-            // 3. Movement Animation (Subtle 2.5D walk bounce & slight tilt)
+            // 3. Movement Animation (Smooth distance-based walk bounce, no tilt jitter)
             const time = gameState.current.time;
-            const walkBob = isMoving ? Math.sin(time * 0.25) * 2.2 : Math.sin(time * 0.05) * 0.7;
-            const walkTilt = isMoving ? Math.sin(time * 0.25) * 0.04 : 0;
-            ctx.rotate(walkTilt);
+            const walkBob = isMoving
+                ? (isPlayer ? Math.sin(gameState.current.player.walkPhase) * 2.0 : Math.sin(time * 0.2) * 2.0)
+                : Math.sin(time * 0.05) * 0.6;
 
             // 4. Draw Character Sprite
             const targetH = 52;
@@ -1005,9 +1087,12 @@ export default function GameCanvas({
             });
         });
 
-        // 3. 2.5D Y-Depth Sorted Render Queue
+        // 3. 2.5D Y-Depth Sorted Render Queue (Rounded integer camera prevents subpixel shimmer)
+        const roundCamX = Math.round(cam.x);
+        const roundCamY = Math.round(cam.y);
+
         ctx.save();
-        ctx.translate(-cam.x, -cam.y);
+        ctx.translate(-roundCamX, -roundCamY);
 
         const renderQueue = [];
 
@@ -1021,8 +1106,8 @@ export default function GameCanvas({
 
         // Add Enemies
         state.enemies.forEach(e => {
-            if (e.x >= cam.x - 80 && e.x <= cam.x + width + 80 &&
-                e.y >= cam.y - 80 && e.y <= cam.y + height + 80) {
+            if (e.x >= roundCamX - 80 && e.x <= roundCamX + width + 80 &&
+                e.y >= roundCamY - 80 && e.y <= roundCamY + height + 80) {
                 renderQueue.push({
                     y: e.y,
                     render: () => {
@@ -1057,8 +1142,8 @@ export default function GameCanvas({
         ctx.restore();
 
         // 4. Lighting System (Off-Screen Darkness Mask)
-        const px = state.player.x - cam.x;
-        const py = state.player.y - cam.y;
+        const px = state.player.x - roundCamX;
+        const py = state.player.y - roundCamY;
 
         const maxR = 90 + (fuelRatio * 220);
         const flicker = (Math.random() - 0.5) * 8;
@@ -1098,8 +1183,8 @@ export default function GameCanvas({
         // Tree / Ruin Torches
         visibleObjects.forEach(t => {
             if (!t.hasTorch) return;
-            const tx = t.x - cam.x;
-            const ty = t.y - cam.y;
+            const tx = t.x - roundCamX;
+            const ty = t.y - roundCamY;
             const tr = 110 + Math.sin(state.time * 0.1 + t.x) * 6;
             const tGrad = lCtx.createRadialGradient(tx, ty, 8, tx, ty, tr);
             tGrad.addColorStop(0, 'rgba(0,0,0,0.95)');
@@ -1114,8 +1199,8 @@ export default function GameCanvas({
         // Cosmic Portal Glow in Darkness
         visibleObjects.forEach(obj => {
             if (!obj.isPortal) return;
-            const ox = obj.x - cam.x;
-            const oy = obj.y - cam.y;
+            const ox = obj.x - roundCamX;
+            const oy = obj.y - roundCamY;
             const pGrad = lCtx.createRadialGradient(ox, oy, 15, ox, oy, 150);
             pGrad.addColorStop(0, 'rgba(0,0,0,0.95)');
             pGrad.addColorStop(1, 'rgba(0,0,0,0)');
@@ -1128,8 +1213,8 @@ export default function GameCanvas({
         // Sacred Shrine Light Beacons in Darkness
         visibleObjects.forEach(obj => {
             if (!obj.isShrine) return;
-            const sx = obj.x - cam.x;
-            const sy = obj.y - cam.y;
+            const sx = obj.x - roundCamX;
+            const sy = obj.y - roundCamY;
             const sRadius = obj.activated ? 240 : (170 + Math.sin(state.time * 0.08 + obj.x) * 12);
             const sGrad = lCtx.createRadialGradient(sx, sy, 10, sx, sy, sRadius);
             sGrad.addColorStop(0, 'rgba(0,0,0,1)');
@@ -1164,8 +1249,8 @@ export default function GameCanvas({
         // Tree torches warm screen blend
         visibleObjects.forEach(t => {
             if (!t.hasTorch) return;
-            const tx = t.x - cam.x;
-            const ty = t.y - cam.y;
+            const tx = t.x - roundCamX;
+            const ty = t.y - roundCamY;
             const treeGlow = ctx.createRadialGradient(tx, ty, 5, tx, ty, 110);
             treeGlow.addColorStop(0, 'rgba(255, 180, 50, 0.3)');
             treeGlow.addColorStop(1, 'rgba(255, 80, 0, 0)');
@@ -1178,8 +1263,8 @@ export default function GameCanvas({
         // Sacred Shrines golden holy screen blend
         visibleObjects.forEach(s => {
             if (!s.isShrine) return;
-            const sx = s.x - cam.x;
-            const sy = s.y - cam.y;
+            const sx = s.x - roundCamX;
+            const sy = s.y - roundCamY;
             const sRadius = s.activated ? 240 : 170;
             const shrineGlow = ctx.createRadialGradient(sx, sy, 5, sx, sy, sRadius);
             if (s.activated) {
@@ -1199,7 +1284,22 @@ export default function GameCanvas({
 
         ctx.restore();
 
+        // Scarlet's Predator Radar Ping
+        if (perk.radarPing) {
+            const pingCycle = (state.time % 130) / 130; // 0 to 1
+            const pingRadius = pingCycle * 650;
+            const pingAlpha = (1 - pingCycle) * 0.25;
+            ctx.save();
+            ctx.strokeStyle = `rgba(255, 165, 0, ${pingAlpha})`;
+            ctx.lineWidth = 1.8;
+            ctx.beginPath();
+            ctx.arc(px, py, pingRadius, 0, Math.PI * 2);
+            ctx.stroke();
+            ctx.restore();
+        }
+
         // 5. Threat Indicators (Eyes in the Dark & Directional Chevrons)
+        const eyeDetectRange = perk.eyeRange || 500;
         let minThreatDist = 9999;
         state.enemies.forEach(e => {
             const dist = Math.hypot(e.x - state.player.x, e.y - state.player.y);
@@ -1207,13 +1307,13 @@ export default function GameCanvas({
                 if (dist < minThreatDist) minThreatDist = dist;
             }
 
-            // Glowing Eyes in the Darkness
-            if (dist < 500) {
-                const ex = e.x - cam.x;
-                const ey = e.y - cam.y;
+            // Glowing Eyes in the Darkness (Extended to 600px for Scarlet)
+            if (dist < eyeDetectRange) {
+                const ex = e.x - roundCamX;
+                const ey = e.y - roundCamY;
                 if (ex >= -50 && ex <= width + 50 && ey >= -50 && ey <= height + 50) {
                     const isChasing = e.state === 'chase' || e.state === 'alert';
-                    const alpha = Math.min(1, Math.max(0.3, 1 - (dist / 500)));
+                    const alpha = Math.min(1, Math.max(0.3, 1 - (dist / eyeDetectRange)));
                     const eyeDist = 4;
                     const eyeAngle = e.angle;
                     const eyeFwd = 8;
@@ -1243,11 +1343,11 @@ export default function GameCanvas({
                 }
             }
 
-            // Directional Threat Chevron (Range influenced by Scarlet's Predator Sight perk)
+            // Directional Threat Chevron (Range influenced by Scarlet's Predator Sight perk: 650px)
             const threatRange = perk.threatRange || 450;
             if (e.state === 'chase' && dist < threatRange) {
-                const ex = e.x - cam.x;
-                const ey = e.y - cam.y;
+                const ex = e.x - roundCamX;
+                const ey = e.y - roundCamY;
                 const angle = Math.atan2(ey - height / 2, ex - width / 2);
                 const edgePad = 35;
                 const edgeX = Math.max(edgePad, Math.min(width - edgePad, width / 2 + Math.cos(angle) * (width / 2 - edgePad)));
@@ -1329,6 +1429,28 @@ export default function GameCanvas({
             ctx.shadowColor = '#fcb42c';
             ctx.shadowBlur = 6;
             ctx.fillText(`SPRINTING`, width / 2, barY + 24);
+            ctx.restore();
+        }
+
+        // Torin's Iron Resolve HUD Status
+        if (perk.ironStun) {
+            const deflectCooldown = 35 * 60;
+            const elapsed = state.time - state.lastDeflectTime;
+            const isReady = elapsed >= deflectCooldown;
+            const remainingSec = Math.ceil((deflectCooldown - elapsed) / 60);
+
+            ctx.save();
+            ctx.font = 'bold 11px monospace';
+            ctx.textAlign = 'center';
+            if (isReady) {
+                ctx.fillStyle = '#FFD700';
+                ctx.shadowColor = '#FFD700';
+                ctx.shadowBlur = 6;
+                ctx.fillText(`IRON RESOLVE: [READY]`, width / 2, barY + 38);
+            } else {
+                ctx.fillStyle = 'rgba(180, 180, 180, 0.7)';
+                ctx.fillText(`IRON RESOLVE: [RECHARGING ${remainingSec}s]`, width / 2, barY + 38);
+            }
             ctx.restore();
         }
 
