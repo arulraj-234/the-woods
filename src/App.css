@@ -1134,7 +1134,6 @@ body {
   z-index: 2;
   height: clamp(240px, 34vh, 290px);
   width: auto;
-  image-rendering: pixelated;
   filter: drop-shadow(0 15px 25px rgba(0, 0, 0, 0.95));
   transition: transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1), filter 0.3s ease;
 }
@@ -1430,7 +1429,6 @@ body {
   z-index: 2;
   height: clamp(240px, 32vh, 290px);
   width: auto;
-  image-rendering: pixelated;
   filter: drop-shadow(0 15px 25px rgba(0, 0, 0, 0.95));
   transition: transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1), filter 0.3s ease;
 }

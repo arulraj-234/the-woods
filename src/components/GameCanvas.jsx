@@ -675,7 +675,9 @@ export default function GameCanvas({
         ctx.save();
         ctx.translate(x, y);
 
-        const sprite = isPlayer ? (assets.getImage(characterId) || assets.getImage('player')) : assets.getImage('hunter');
+        const sprite = isPlayer
+            ? (assets.getImage(characterId) || assets.getImage('player'))
+            : (assets.getImage('char_hunter') || assets.getImage('hunter'));
 
         if (sprite) {
             // 1. Ground Shadow (Realistic 2.5D contact shadow)
@@ -697,7 +699,9 @@ export default function GameCanvas({
 
             // 4. Draw Character Sprite
             const targetH = 52;
-            const aspect = sprite.width / sprite.height;
+            const sW = sprite.naturalWidth || sprite.width || 800;
+            const sH = sprite.naturalHeight || sprite.height || 1400;
+            const aspect = sW / sH;
             const targetW = targetH * aspect;
             const drawX = -targetW / 2;
             const drawY = -targetH + 4 + walkBob;
