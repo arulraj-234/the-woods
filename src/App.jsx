@@ -458,12 +458,6 @@ export default function App() {
                 <p className="home-hero-subtitle">SURVIVE THE NIGHT</p>
               </div>
 
-              <div className="landing-lore-box">
-                <p className="landing-lore-quote">
-                  "An ancient darkness grips the cursed grove. Choose your survivor, nurse your dying flame, and consecrate the shrines before the night stalkers claim your soul."
-                </p>
-              </div>
-
               <div className="landing-action-wrap">
                 <button
                   className="landing-play-btn pulse-btn"
