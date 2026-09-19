@@ -632,48 +632,35 @@ export default function App() {
           {screen === "base_camp" && (
             <main className="base-camp-main-card">
               <div className="base-camp-layout">
-                {/* Left Column: Active Survivor Card */}
+                {/* Left Column: Freestanding Big Character Showcase (No bounding box or borders) */}
                 <div
-                  className="camp-survivor-card"
+                  className="camp-showcase-column"
                   onClick={() => goToCharacterSelect("base_camp")}
-                  title="Click to change your survivor"
+                  title="Click character to change survivor"
                 >
-                  <div className="camp-survivor-tag">SURVIVOR ON DUTY</div>
-
-                  <div className="camp-stage-frame">
+                  <div className="camp-hero-sprite-stage">
                     {currentThumb ? (
                       <img
                         src={currentThumb}
                         alt={currentCharacter.name}
-                        className="camp-stage-sprite"
+                        className="camp-hero-big-sprite"
                       />
                     ) : (
                       <div className="char-portrait-placeholder">
-                        <svg width="40" height="40" viewBox="0 0 24 24" fill="currentColor">
+                        <svg width="60" height="60" viewBox="0 0 24 24" fill="currentColor">
                           <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z" />
                         </svg>
                       </div>
                     )}
-                    <div className="camp-stage-pedestal" />
+                    <div className="camp-hero-pedestal" />
                   </div>
 
-                  <div className="camp-callsign">CALLSIGN: {playerName}</div>
-                  <h3 className="camp-char-name">{currentCharacter.name}</h3>
-                  <div className="camp-char-title">{currentCharacter.title}</div>
-
-                  <div className="camp-perk-summary">
-                    <strong>{currentCharacter.perkTitle}</strong>: {currentCharacter.perkDesc}
+                  <div className="camp-showcase-info">
+                    <div className="camp-showcase-callsign">CALLSIGN: {playerName}</div>
+                    <h2 className="camp-showcase-name">{currentCharacter.name}</h2>
+                    <div className="camp-showcase-title">{currentCharacter.title}</div>
+                    <span className="camp-showcase-hint">CLICK CHARACTER TO CHANGE</span>
                   </div>
-
-                  <button
-                    className="camp-change-char-btn"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      goToCharacterSelect("base_camp");
-                    }}
-                  >
-                    CHANGE SURVIVOR
-                  </button>
                 </div>
 
                 {/* Right Column: Base Camp Options Menu */}

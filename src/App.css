@@ -1314,104 +1314,119 @@ body {
   align-items: center;
 }
 
-/* Left Column: Active Survivor Card */
-.camp-survivor-card {
-  background: rgba(18, 14, 18, 0.92);
-  border: 1.5px solid rgba(252, 180, 44, 0.35);
-  border-radius: 14px;
-  padding: 26px;
-  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.75);
+/* Left Column: Freestanding Big Character Showcase (No enclosing box or borders) */
+.camp-showcase-column {
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
   text-align: center;
   cursor: pointer;
-  transition: all 0.3s ease;
   position: relative;
+  padding: 10px;
+  user-select: none;
 }
 
-.camp-survivor-card:hover {
-  border-color: var(--flame-amber);
-  box-shadow: 0 0 35px var(--flame-amber-glow);
-  transform: translateY(-2px);
+.camp-hero-sprite-stage {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  margin-bottom: 16px;
 }
 
-.camp-survivor-tag {
+.camp-hero-pedestal {
+  position: absolute;
+  bottom: 8px;
+  width: 200px;
+  height: 28px;
+  background: radial-gradient(ellipse at center, rgba(252, 180, 44, 0.45) 0%, rgba(231, 77, 2, 0.25) 45%, transparent 75%);
+  border-radius: 50%;
+  filter: blur(4px);
+  z-index: 1;
+  transition: all 0.3s ease;
+}
+
+.camp-hero-big-sprite {
+  position: relative;
+  z-index: 2;
+  height: clamp(240px, 32vh, 290px);
+  width: auto;
+  image-rendering: pixelated;
+  filter: drop-shadow(0 15px 25px rgba(0, 0, 0, 0.95));
+  transition: transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1), filter 0.3s ease;
+}
+
+.camp-showcase-column:hover .camp-hero-big-sprite {
+  transform: scale(1.08) translateY(-4px);
+  filter: drop-shadow(0 0 25px var(--flame-amber-glow)) drop-shadow(0 20px 30px rgba(0, 0, 0, 0.95));
+}
+
+.camp-showcase-column:hover .camp-hero-pedestal {
+  width: 230px;
+  background: radial-gradient(ellipse at center, rgba(252, 180, 44, 0.65) 0%, rgba(231, 77, 2, 0.4) 50%, transparent 75%);
+  filter: blur(3px);
+}
+
+.camp-showcase-info {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.camp-showcase-callsign {
   font-family: var(--font-mono);
-  font-size: 0.76rem;
+  font-size: 0.95rem;
   letter-spacing: 2px;
+  color: var(--smoke-gray);
+  text-transform: uppercase;
+}
+
+.camp-showcase-name {
+  font-family: var(--font-gothic);
+  font-size: 2.3rem;
+  letter-spacing: 3px;
+  color: var(--flame-amber);
+  margin: 0;
+  text-shadow: 0 0 15px var(--flame-amber-glow);
+  transition: color 0.25s ease;
+}
+
+.camp-showcase-column:hover .camp-showcase-name {
+  color: #ffffff;
+  text-shadow: 0 0 25px var(--flame-amber-glow);
+}
+
+.camp-showcase-title {
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+  letter-spacing: 3px;
   color: var(--flame-orange);
   text-transform: uppercase;
-  margin-bottom: 12px;
   font-weight: bold;
 }
 
-.camp-stage-frame {
-  position: relative;
-  width: 100%;
-  max-width: 260px;
-  height: 200px;
+.camp-showcase-hint {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  letter-spacing: 2px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  margin-top: 6px;
+  padding: 4px 12px;
+  background: rgba(252, 180, 44, 0.08);
+  border: 1px solid rgba(252, 180, 44, 0.25);
   border-radius: 12px;
-  background: radial-gradient(circle at 50% 65%, rgba(231, 77, 2, 0.22) 0%, rgba(182, 38, 2, 0.08) 35%, rgba(18, 14, 18, 0.85) 65%, rgba(6, 5, 7, 0.95) 100%);
-  border: 1.5px solid rgba(252, 180, 44, 0.35);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin-bottom: 14px;
-  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.75), inset 0 0 25px rgba(231, 77, 2, 0.15);
-  overflow: hidden;
-  transition: all 0.3s ease;
+  transition: all 0.25s ease;
 }
 
-.camp-stage-pedestal {
-  position: absolute;
-  bottom: 16px;
-  width: 130px;
-  height: 20px;
-  background: radial-gradient(ellipse at center, rgba(252, 180, 44, 0.45) 0%, rgba(182, 38, 2, 0.25) 45%, transparent 75%);
-  border-radius: 50%;
-  filter: blur(2px);
-}
-
-.camp-stage-sprite {
-  position: relative;
-  z-index: 2;
-  height: 145px;
-  width: auto;
-  image-rendering: pixelated;
-  filter: drop-shadow(0 10px 15px rgba(0, 0, 0, 0.85));
-  transition: transform 0.25s ease;
-}
-
-.camp-survivor-card:hover .camp-stage-frame {
+.camp-showcase-column:hover .camp-showcase-hint {
+  color: var(--flame-amber);
   border-color: var(--flame-amber);
-  box-shadow: 0 0 35px var(--flame-amber-glow);
-}
-
-.camp-survivor-card:hover .camp-stage-sprite {
-  transform: scale(1.05);
-}
-
-.camp-portrait-frame {
-  position: relative;
-  width: 140px;
-  height: 140px;
-  border-radius: 50%;
-  background: radial-gradient(circle at center, rgba(231, 77, 2, 0.3) 0%, rgba(18, 14, 18, 0.95) 75%);
-  border: 2px solid var(--flame-amber);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin-bottom: 16px;
-  box-shadow: 0 0 25px var(--flame-amber-glow);
-  overflow: hidden;
-}
-
-.camp-portrait-img {
-  height: 120px;
-  width: auto;
-  image-rendering: pixelated;
-  object-fit: contain;
+  background: rgba(252, 180, 44, 0.16);
+  box-shadow: 0 0 12px var(--flame-amber-glow);
 }
 
 .camp-callsign {
