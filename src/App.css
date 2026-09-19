@@ -1491,94 +1491,101 @@ body {
   box-shadow: 0 0 15px var(--flame-amber-glow);
 }
 
-/* Right Column: Camp Menu */
-.camp-menu-card {
-  background: rgba(18, 14, 18, 0.92);
-  border: 1.5px solid rgba(252, 180, 44, 0.35);
-  border-radius: 14px;
-  padding: 32px 36px;
-  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.75);
+/* Right Column: Seamless Floating Menu (Integrated into background, zero boxes) */
+.camp-seamless-menu {
   display: flex;
   flex-direction: column;
+  align-items: flex-start;
+  padding-left: 20px;
 }
 
-.camp-menu-header {
-  border-bottom: 1px solid rgba(252, 180, 44, 0.2);
-  padding-bottom: 16px;
-  margin-bottom: 24px;
-  text-align: center;
+.camp-seamless-header {
+  margin-bottom: 32px;
+  text-align: left;
 }
 
-.camp-menu-title {
+.camp-seamless-title {
   font-family: var(--font-gothic);
-  font-size: 2.1rem;
-  letter-spacing: 3px;
+  font-size: clamp(2.4rem, 3.8vw, 3.2rem);
+  letter-spacing: 4px;
   color: var(--flame-amber);
-  margin: 0 0 4px 0;
-  text-shadow: 0 0 15px var(--flame-amber-glow);
+  margin: 0 0 6px 0;
+  text-shadow: 0 0 20px var(--flame-amber-glow), 0 4px 15px rgba(0, 0, 0, 0.9);
 }
 
-.camp-menu-subtitle {
+.camp-seamless-subtitle {
   font-family: var(--font-mono);
-  font-size: 0.78rem;
-  letter-spacing: 2px;
+  font-size: 0.8rem;
+  letter-spacing: 3px;
   color: var(--text-muted);
   text-transform: uppercase;
   margin: 0;
 }
 
-.camp-menu-stack {
+.camp-seamless-nav {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 20px;
+  align-items: flex-start;
 }
 
-.camp-menu-btn {
+.camp-nav-item {
   font-family: var(--font-gothic);
-  font-size: 1.25rem;
-  letter-spacing: 2.5px;
-  padding: 14px 24px;
-  background: rgba(14, 11, 14, 0.8);
-  border: 1.5px solid rgba(178, 164, 161, 0.25);
-  border-radius: 8px;
+  font-size: clamp(1.6rem, 2.4vw, 2.1rem);
+  letter-spacing: 3px;
   color: var(--warm-cream);
-  cursor: pointer;
-  transition: all 0.25s ease;
-  text-align: center;
-}
-
-.camp-menu-btn:hover {
-  border-color: var(--flame-amber);
-  color: var(--flame-amber);
-  background: rgba(231, 77, 2, 0.15);
-  box-shadow: 0 0 20px rgba(231, 77, 2, 0.4);
-  transform: translateX(4px);
-}
-
-.camp-menu-btn.primary-btn {
-  font-size: 1.45rem;
-  border-color: var(--flame-amber);
-  background: linear-gradient(135deg, rgba(231, 77, 2, 0.25) 0%, rgba(182, 38, 2, 0.35) 100%);
-  color: var(--warm-cream);
-  box-shadow: 0 0 25px var(--flame-amber-glow);
-}
-
-.camp-menu-btn.primary-btn:hover {
-  background: linear-gradient(135deg, var(--flame-orange) 0%, var(--ember-crimson) 100%);
-  color: #ffffff;
-  border-color: #ffffff;
-  box-shadow: 0 0 35px rgba(231, 77, 2, 0.85);
-  transform: scale(1.03);
-}
-
-.camp-menu-btn.secondary-ghost {
-  border-color: transparent;
-  color: var(--text-muted);
-  font-size: 1.05rem;
-}
-
-.camp-menu-btn.secondary-ghost:hover {
-  color: var(--smoke-gray);
-  border-color: rgba(178, 164, 161, 0.3);
   background: transparent;
+  border: none;
+  outline: none;
+  cursor: pointer;
+  padding: 6px 0;
+  position: relative;
+  text-align: left;
+  transition: all 0.25s cubic-bezier(0.2, 0.8, 0.2, 1);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.camp-nav-item::before {
+  content: "";
+  display: inline-block;
+  width: 0;
+  height: 3px;
+  background: var(--flame-amber);
+  box-shadow: 0 0 10px var(--flame-amber-glow);
+  transition: width 0.25s ease;
+  border-radius: 2px;
+}
+
+.camp-nav-item:hover {
+  color: #ffffff;
+  transform: translateX(12px);
+  text-shadow: 0 0 25px var(--flame-amber-glow), 0 0 40px rgba(231, 77, 2, 0.6);
+}
+
+.camp-nav-item:hover::before {
+  width: 18px;
+}
+
+.camp-nav-primary {
+  font-size: clamp(1.9rem, 2.8vw, 2.5rem);
+  color: var(--flame-amber);
+  text-shadow: 0 0 15px rgba(252, 180, 44, 0.4);
+}
+
+.camp-nav-primary:hover {
+  color: #ffffff;
+  text-shadow: 0 0 30px var(--flame-amber-glow), 0 0 50px rgba(231, 77, 2, 0.8);
+}
+
+.camp-nav-ghost {
+  font-size: clamp(1.2rem, 1.8vw, 1.5rem);
+  color: var(--text-muted);
+  margin-top: 10px;
+}
+
+.camp-nav-ghost:hover {
+  color: var(--smoke-gray);
+  text-shadow: 0 0 15px rgba(255, 255, 255, 0.3);
 }

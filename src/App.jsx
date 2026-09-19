@@ -659,41 +659,25 @@ export default function App() {
                     <div className="camp-showcase-callsign">CALLSIGN: {playerName}</div>
                     <h2 className="camp-showcase-name">{currentCharacter.name}</h2>
                     <div className="camp-showcase-title">{currentCharacter.title}</div>
-                    <span className="camp-showcase-hint">CLICK CHARACTER TO CHANGE</span>
                   </div>
                 </div>
 
-                {/* Right Column: Base Camp Options Menu */}
-                <div className="camp-menu-card">
-                  <div className="camp-menu-header">
-                    <h2 className="camp-menu-title">BASE CAMP</h2>
-                    <p className="camp-menu-subtitle">THE THRESHOLD OF DARKNESS</p>
+                {/* Right Column: Seamless Floating Base Camp Menu (Integrated into background, zero boxes) */}
+                <div className="camp-seamless-menu">
+                  <div className="camp-seamless-header">
+                    <h2 className="camp-seamless-title">BASE CAMP</h2>
+                    <p className="camp-seamless-subtitle">THE THRESHOLD OF DARKNESS</p>
                   </div>
 
-                  <div className="camp-menu-stack">
+                  <nav className="camp-seamless-nav">
                     <button
-                      className="camp-menu-btn primary-btn pulse-btn"
+                      className="camp-nav-item camp-nav-primary pulse-text"
                       onClick={startGame}
                     >
                       ENTER THE WOODS
                     </button>
                     <button
-                      className="camp-menu-btn"
-                      onClick={() => goToCharacterSelect("base_camp")}
-                    >
-                      CHANGE SURVIVOR
-                    </button>
-                    <button
-                      className="camp-menu-btn"
-                      onClick={() => {
-                        setSettingsTab("guide");
-                        setShowSettings(true);
-                      }}
-                    >
-                      SURVIVAL FIELD GUIDE
-                    </button>
-                    <button
-                      className="camp-menu-btn"
+                      className="camp-nav-item"
                       onClick={() => {
                         setSettingsTab("settings");
                         setShowSettings(true);
@@ -702,12 +686,12 @@ export default function App() {
                       SETTINGS
                     </button>
                     <button
-                      className="camp-menu-btn secondary-ghost"
+                      className="camp-nav-item camp-nav-ghost"
                       onClick={() => setScreen("landing")}
                     >
                       RETURN TO TITLE
                     </button>
-                  </div>
+                  </nav>
                 </div>
               </div>
             </main>
