@@ -640,12 +640,12 @@ export default function App() {
                 >
                   <div className="camp-survivor-tag">SURVIVOR ON DUTY</div>
 
-                  <div className="camp-portrait-frame">
+                  <div className="camp-stage-frame">
                     {currentThumb ? (
                       <img
                         src={currentThumb}
                         alt={currentCharacter.name}
-                        className="camp-portrait-img"
+                        className="camp-stage-sprite"
                       />
                     ) : (
                       <div className="char-portrait-placeholder">
@@ -654,6 +654,7 @@ export default function App() {
                         </svg>
                       </div>
                     )}
+                    <div className="camp-stage-pedestal" />
                   </div>
 
                   <div className="camp-callsign">CALLSIGN: {playerName}</div>
