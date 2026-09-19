@@ -54,10 +54,10 @@ describe("The Woods", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "PLAY" }));
 
-    // Verify Base Camp screen is rendered
-    expect(screen.getByText("BASE CAMP")).toBeInTheDocument();
-    expect(screen.getByText("THE THRESHOLD OF DARKNESS")).toBeInTheDocument();
-    expect(screen.getByText("CALLSIGN: ShadowWalker")).toBeInTheDocument();
+    // Verify Base Camp screen options are rendered
+    expect(screen.getByText("ShadowWalker")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "ENTER THE WOODS" })).toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: "SETTINGS" })).toHaveLength(2);
+    expect(screen.getByRole("button", { name: "RETURN TO TITLE" })).toBeInTheDocument();
   });
 });

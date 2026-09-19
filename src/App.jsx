@@ -421,11 +421,6 @@ export default function App() {
               <span className="highscore-badge">
                 BEST RECORD: <strong>{highScore}</strong>
               </span>
-              {hasOnboarded && (
-                <span className="topbar-player-badge">
-                  CALLSIGN: <strong>{playerName}</strong>
-                </span>
-              )}
             </div>
             <div className="topbar-right">
               <button
@@ -454,13 +449,13 @@ export default function App() {
           {screen === "landing" && (
             <main className="landing-main-card">
               <div className="landing-hero-title-wrap">
-                <h1 className="home-hero-title">THE WOODS</h1>
-                <p className="home-hero-subtitle">SURVIVE THE NIGHT</p>
+                <h1 className="landing-hero-title">THE WOODS</h1>
+                <p className="landing-hero-subtitle">SURVIVE THE NIGHT</p>
               </div>
 
               <div className="landing-action-wrap">
                 <button
-                  className="landing-play-btn pulse-btn"
+                  className="landing-play-btn"
                   onClick={handleLandingPlay}
                 >
                   PLAY
@@ -656,7 +651,7 @@ export default function App() {
                   </div>
 
                   <div className="camp-showcase-info">
-                    <div className="camp-showcase-callsign">CALLSIGN: {playerName}</div>
+                    <div className="camp-showcase-player">{playerName}</div>
                     <h2 className="camp-showcase-name">{currentCharacter.name}</h2>
                     <div className="camp-showcase-title">{currentCharacter.title}</div>
                   </div>
@@ -664,11 +659,6 @@ export default function App() {
 
                 {/* Right Column: Seamless Floating Base Camp Menu (Integrated into background, zero boxes) */}
                 <div className="camp-seamless-menu">
-                  <div className="camp-seamless-header">
-                    <h2 className="camp-seamless-title">BASE CAMP</h2>
-                    <p className="camp-seamless-subtitle">THE THRESHOLD OF DARKNESS</p>
-                  </div>
-
                   <nav className="camp-seamless-nav">
                     <button
                       className="camp-nav-item camp-nav-primary pulse-text"
@@ -710,17 +700,17 @@ export default function App() {
                 <div className="onboarding-header">
                   <h2 className="onboarding-title">SURVIVOR REGISTRATION</h2>
                   <p className="onboarding-subtitle">
-                    Declare your callsign before venturing into the cursed woods.
+                    Enter your name before venturing into the cursed woods.
                   </p>
                 </div>
 
                 <form onSubmit={handleOnboardingSubmit} className="onboarding-form">
                   <div className="onboarding-input-wrap">
-                    <label className="onboarding-label" htmlFor="callsign-input">
-                      Survivor Callsign
+                    <label className="onboarding-label" htmlFor="playername-input">
+                      Survivor Name
                     </label>
                     <input
-                      id="callsign-input"
+                      id="playername-input"
                       type="text"
                       className="styled-name-input onboarding-input"
                       value={tempUsername}
