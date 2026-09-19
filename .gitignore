@@ -22,3 +22,11 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Raw archives and local art assets
+*.zip
+*.rar
+*.tar.gz
+art_source/
+raw_assets/
+assessts/

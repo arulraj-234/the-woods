@@ -1,251 +1,724 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import "./App.css";
+import GameCanvas from "./components/GameCanvas";
+import { assets, CHARACTER_ROSTER } from "./engine/Assets";
 
-// --- Game Data ---
-const GRID_SIZE = 10;
-const landmarks = {
-  "old oak tree": [2, 3],
-  "shimmering pond": [7, 1],
-  "stone bridge": [5, 5],
-  "hidden cave": [1, 8],
-  "ancient statue": [8, 7], // Treasure
-  "flower garden": [3, 6],
-  "tall tower": [6, 9],
-  "secret library": [9, 4],
-};
-
-const checkpoints = [
-  "old oak tree",
-  "shimmering pond",
-  "stone bridge",
-  "hidden cave",
-  "ancient statue",
-];
-
-// Clues for each checkpoint (not direct names)
-const checkpointClues = {
-  "old oak tree": "Where the mighty branches stretch wide",
-  "shimmering pond": "A mirror of water that glistens in the sun",
-  "stone bridge": "Crossing over with stones beneath your feet",
-  "hidden cave": "A secret hollow in the rocky hill",
-  "ancient statue": "The guardian of treasures old and grand",
-};
-
-// Images for each checkpoint (replace with your own if you like)
-const checkpointImages = {
-  "old oak tree": "https://img.icons8.com/color/48/deciduous-tree.png",
-  "shimmering pond": "https://img.icons8.com/color/48/lake.png",
-  "stone bridge": "https://img.icons8.com/color/48/bridge.png",
-  "hidden cave": "https://img.icons8.com/color/48/cave.png",
-  "ancient statue": "https://img.icons8.com/color/48/statue.png"
-};
-
-
-
-
-
-
-const riddlesPool = [
-  { riddle: "I speak without a mouth and hear without ears. I have nobody, but I come alive with wind. What am I?", answer: "echo" },
-  { riddle: "I come from a mine and get surrounded by wood always. Everyone uses me. What am I?", answer: "pencil" },
-  { riddle: "The more of me you take, the more you leave behind. What am I?", answer: "footsteps" },
-  { riddle: "I have keys but no locks. I have space but no room. You can enter but can’t go outside. What am I?", answer: "keyboard" },
-  { riddle: "What has to be broken before you can use it?", answer: "egg" },
-  { riddle: "I’m tall when I’m young, and I’m short when I’m old. What am I?", answer: "candle" },
-  { riddle: "What has hands but can’t clap?", answer: "clock" },
-  { riddle: "What has a head and a tail but no body?", answer: "coin" },
-];
-
-// Utility function to shuffle array
-function shuffle(array) {
-  const arr = [...array];
-  for (let i = arr.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [arr[i], arr[j]] = [arr[j], arr[i]];
+// --- Ambient Forest Audio Synthesizer ---
+class ForestAmbience {
+  constructor() {
+    this.ctx = null;
+    this.isPlaying = false;
+    this.gainNode = null;
+    this.nodes = null;
   }
-  return arr;
+
+  start(volume = 0.5) {
+    if (this.isPlaying) return;
+    try {
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      if (!AudioCtx) return;
+      this.ctx = new AudioCtx();
+      if (this.ctx.state === "suspended") this.ctx.resume();
+
+      this.gainNode = this.ctx.createGain();
+      this.gainNode.gain.setValueAtTime(volume * 0.28, this.ctx.currentTime);
+      this.gainNode.connect(this.ctx.destination);
+
+      // Wind noise generator (filtered pink/brownian noise)
+      const bufferSize = this.ctx.sampleRate * 2;
+      const noiseBuffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+      const output = noiseBuffer.getChannelData(0);
+      let b0 = 0, b1 = 0, b2 = 0;
+      for (let i = 0; i < bufferSize; i++) {
+        const white = Math.random() * 2 - 1;
+        b0 = 0.99 * b0 + white * 0.05;
+        b1 = 0.96 * b1 + white * 0.11;
+        b2 = 0.86 * b2 + white * 0.25;
+        output[i] = (b0 + b1 + b2) * 0.35;
+      }
+
+      const whiteNoise = this.ctx.createBufferSource();
+      whiteNoise.buffer = noiseBuffer;
+      whiteNoise.loop = true;
+
+      // Bandpass filter for wind howl sweep
+      const filter = this.ctx.createBiquadFilter();
+      filter.type = "bandpass";
+      filter.frequency.setValueAtTime(260, this.ctx.currentTime);
+      filter.Q.setValueAtTime(2.5, this.ctx.currentTime);
+
+      const lfo = this.ctx.createOscillator();
+      lfo.frequency.setValueAtTime(0.12, this.ctx.currentTime);
+      const lfoGain = this.ctx.createGain();
+      lfoGain.gain.setValueAtTime(130, this.ctx.currentTime);
+      lfo.connect(lfoGain);
+      lfoGain.connect(filter.frequency);
+
+      whiteNoise.connect(filter);
+      filter.connect(this.gainNode);
+
+      // Low bass wood drone (55 Hz)
+      const sub = this.ctx.createOscillator();
+      sub.type = "sine";
+      sub.frequency.setValueAtTime(55, this.ctx.currentTime);
+      const subGain = this.ctx.createGain();
+      subGain.gain.setValueAtTime(0.3, this.ctx.currentTime);
+      sub.connect(subGain);
+      subGain.connect(this.gainNode);
+
+      whiteNoise.start();
+      lfo.start();
+      sub.start();
+
+      this.nodes = { whiteNoise, lfo, sub };
+      this.isPlaying = true;
+    } catch (e) {
+      console.warn("Ambience audio failed to start", e);
+    }
+  }
+
+  setVolume(vol) {
+    if (this.gainNode && this.ctx) {
+      this.gainNode.gain.setValueAtTime(vol * 0.28, this.ctx.currentTime);
+    }
+  }
+
+  stop() {
+    if (!this.isPlaying) return;
+    try {
+      if (this.nodes) {
+        if (this.nodes.whiteNoise) this.nodes.whiteNoise.stop();
+        if (this.nodes.lfo) this.nodes.lfo.stop();
+        if (this.nodes.sub) this.nodes.sub.stop();
+      }
+      if (this.ctx && this.ctx.state !== "closed") this.ctx.close();
+    } catch {}
+    this.isPlaying = false;
+  }
+}
+
+const ambiencePlayer = new ForestAmbience();
+
+// --- Dark Forest Animated Background ---
+function DarkForestBackground() {
+  const bgCanvasRef = useRef(null);
+
+  useEffect(() => {
+    const canvas = bgCanvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    let animId;
+
+    const resize = () => {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+    };
+    resize();
+    window.addEventListener("resize", resize);
+
+    // Embers
+    // Embers (using swatches from bonfire and fiery flame palettes)
+    const emberPalette = ["#FCB42C", "#EC8B10", "#E74D02", "#EB4315", "#B62602"];
+    const embers = Array.from({ length: 48 }, () => ({
+      x: Math.random() * window.innerWidth,
+      y: Math.random() * window.innerHeight,
+      r: Math.random() * 2 + 0.8,
+      speedY: Math.random() * 0.8 + 0.3,
+      speedX: (Math.random() - 0.5) * 0.4,
+      alpha: Math.random() * 0.8 + 0.2,
+      color: emberPalette[Math.floor(Math.random() * emberPalette.length)],
+    }));
+
+    // Fog layers
+    let fogOffset = 0;
+
+    const render = () => {
+      const w = canvas.width;
+      const h = canvas.height;
+      fogOffset += 0.25;
+
+      // Deep dark night gradient (charcoal black with warm ember undertone)
+      const bgGrad = ctx.createLinearGradient(0, 0, 0, h);
+      bgGrad.addColorStop(0, "#050406");
+      bgGrad.addColorStop(0.55, "#0f0a0d");
+      bgGrad.addColorStop(1, "#070507");
+      ctx.fillStyle = bgGrad;
+      ctx.fillRect(0, 0, w, h);
+
+      // Distant volcanic / bonfire atmospheric glow
+      const bonfireGlow = ctx.createRadialGradient(w * 0.72, h * 0.2, 10, w * 0.72, h * 0.2, 320);
+      bonfireGlow.addColorStop(0, "rgba(231, 77, 2, 0.12)");
+      bonfireGlow.addColorStop(0.5, "rgba(182, 38, 2, 0.04)");
+      bonfireGlow.addColorStop(1, "rgba(0, 0, 0, 0)");
+      ctx.fillStyle = bonfireGlow;
+      ctx.fillRect(0, 0, w, h);
+
+      // Back layer charred tree silhouettes
+      ctx.fillStyle = "#0c0709";
+      for (let i = 0; i < 22; i++) {
+        const tx = (i * (w / 18)) - 40;
+        const th = h * 0.58 + (Math.sin(i * 3) * 60);
+        ctx.beginPath();
+        ctx.moveTo(tx, h);
+        ctx.lineTo(tx + 22, h - th);
+        ctx.lineTo(tx + 44, h);
+        ctx.fill();
+      }
+
+      // Mid layer charred pine silhouettes
+      ctx.fillStyle = "#070406";
+      for (let i = 0; i < 16; i++) {
+        const tx = (i * (w / 13)) - 30;
+        const th = h * 0.42 + (Math.cos(i * 2.5) * 45);
+        ctx.beginPath();
+        ctx.moveTo(tx, h);
+        ctx.lineTo(tx + 28, h - th);
+        ctx.lineTo(tx + 56, h);
+        ctx.fill();
+      }
+
+      // Drifting warm ash mist
+      ctx.save();
+      ctx.fillStyle = "rgba(45, 25, 30, 0.04)";
+      for (let i = 0; i < 3; i++) {
+        ctx.beginPath();
+        const yBase = h * (0.65 + i * 0.12);
+        ctx.moveTo(0, h);
+        for (let x = 0; x <= w; x += 40) {
+          const my = yBase + Math.sin((x + fogOffset * (i + 1) * 0.8) * 0.008) * 25;
+          ctx.lineTo(x, my);
+        }
+        ctx.lineTo(w, h);
+        ctx.closePath();
+        ctx.fill();
+      }
+      ctx.restore();
+
+      // Rising embers
+      embers.forEach((em) => {
+        em.y -= em.speedY;
+        em.x += em.speedX + Math.sin(em.y * 0.01) * 0.3;
+        if (em.y < -10) {
+          em.y = h + 10;
+          em.x = Math.random() * w;
+        }
+
+        ctx.save();
+        ctx.globalAlpha = em.alpha * 0.85;
+        ctx.fillStyle = em.color;
+        ctx.shadowColor = em.color;
+        ctx.shadowBlur = 6;
+        ctx.beginPath();
+        ctx.arc(em.x, em.y, em.r, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      });
+
+      animId = requestAnimationFrame(render);
+    };
+
+    render();
+
+    return () => {
+      window.removeEventListener("resize", resize);
+      cancelAnimationFrame(animId);
+    };
+  }, []);
+
+  return <canvas ref={bgCanvasRef} className="forest-bg-canvas" />;
 }
 
 export default function App() {
-  // Randomize checkpoint order and riddles
-  const [randomCheckpoints] = useState(() => shuffle(checkpoints));
-  const [playerRiddles] = useState(() => shuffle(riddlesPool).slice(0, randomCheckpoints.length));
-  const [position, setPosition] = useState([0, 0]);
-  const [progress, setProgress] = useState(0);
-  const [winner, setWinner] = useState(false);
-  const [showRiddle, setShowRiddle] = useState(false);
-  const [riddleInput, setRiddleInput] = useState("");
-  const [riddleError, setRiddleError] = useState(false);
+  const [started, setStarted] = useState(false);
+  const [gameOver, setGameOver] = useState(false);
+  const [level, setLevel] = useState(1);
+  const [score, setScore] = useState(0);
+  const [gameKey, setGameKey] = useState(0);
 
-  const currentCheckpoint = randomCheckpoints[progress];
-  const currentCheckpointLoc = landmarks[currentCheckpoint];
-
-  // Keyboard movement (fixed directions)
-  const handleKeyDown = useCallback(
-    (e) => {
-      if (winner || showRiddle) return;
-      switch (e.key) {
-        case "ArrowUp":
-          movePlayer(0, -1); // y-1 (up)
-          break;
-        case "ArrowDown":
-          movePlayer(0, 1);  // y+1 (down)
-          break;
-        case "ArrowLeft":
-          movePlayer(-1, 0); // x-1 (left)
-          break;
-        case "ArrowRight":
-          movePlayer(1, 0);  // x+1 (right)
-          break;
-        default:
-          break;
-      }
-    },
-    [winner, showRiddle, position, progress]
+  // Persistence
+  const [highScore, setHighScore] = useState(
+    parseInt(localStorage.getItem("th_highscore") || "0")
+  );
+  const [playerName, setPlayerName] = useState(
+    localStorage.getItem("th_playername") || "Survivor"
+  );
+  const [selectedCharacter, setSelectedCharacter] = useState(
+    localStorage.getItem("th_selected_char") || "char_survivor"
   );
 
+  // Settings
+  const [settings, setSettings] = useState(() => {
+    try {
+      const saved = localStorage.getItem("th_settings");
+      if (saved) return JSON.parse(saved);
+    } catch {}
+    return { volume: 0.8, screenShake: true, sfxEnabled: true, ambience: true };
+  });
+
+  const [showSettings, setShowSettings] = useState(false);
+  const [settingsTab, setSettingsTab] = useState("settings"); // 'settings' | 'guide'
+  const [assetsLoaded, setAssetsLoaded] = useState(false);
+
+  // Pre-load assets on mount
   useEffect(() => {
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [handleKeyDown]);
-
-  // Move player
-  function movePlayer(dx, dy) {
-    if (winner || showRiddle) return;
-    const [x, y] = position;
-    const nx = Math.max(0, Math.min(GRID_SIZE - 1, x + dx));
-    const ny = Math.max(0, Math.min(GRID_SIZE - 1, y + dy));
-    if (nx === x && ny === y) return;
-    setPosition([nx, ny]);
-
-    // Check if reached any checkpoint in the order
-    for (let i = 0; i < randomCheckpoints.length; i++) {
-      const cpLoc = landmarks[randomCheckpoints[i]];
-      if (nx === cpLoc[0] && ny === cpLoc[1] && i === progress) {
-        setShowRiddle(true);
-        setRiddleError(false);
-        setRiddleInput("");
-        return;
-      }
-    }
-  }
-
-  // Submit riddle answer
-  function handleRiddleSubmit() {
-    if (riddleInput.trim().toLowerCase() === playerRiddles[progress].answer) {
-      const newProgress = progress + 1;
-      setProgress(newProgress);
-      setShowRiddle(false);
-      setRiddleError(false);
-      setRiddleInput("");
-      if (newProgress === randomCheckpoints.length) {
-        setWinner(true);
-      }
-    } else {
-      setRiddleError(true);
-    }
-  }
-
-  // Render grid cell
-  function renderCell(x, y) {
-    let style = {
-      width: 40,
-      height: 40,
-      border: "1.5px solid #222",
-      background: "rgba(255,255,255,0.7)",
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "center",
-      position: "relative",
-      transition: "background 0.2s, box-shadow 0.2s",
-      boxShadow: "0 1px 4px rgba(0,0,0,0.07)",
-    };
-    let content = null;
-
-    // Player
-    if (position[0] === x && position[1] === y) {
-      style.background = "linear-gradient(135deg, #a8ff78 0%, #78ffd6 100%)";
-      style.boxShadow = "0 0 12px 2px #6cf2d2";
-      content = <span style={{ fontSize: 26, filter: "drop-shadow(0 1px 2px #333)" }}>🙂</span>;
-    }
-
-    // All checkpoints as images, highlight the current one
-    randomCheckpoints.forEach((cp, idx) => {
-      const [cx, cy] = landmarks[cp];
-      if (cx === x && cy === y) {
-        content = (
-          <img
-            src={checkpointImages[cp]}
-            alt="Checkpoint"
-            style={{
-              width: 32,
-              height: 32,
-              borderRadius: 8,
-              //border: idx === progress ? "3px solid #f39c12" : "2px solid #bb8c2b",
-              background: "#fff",
-             // boxShadow: idx === progress ? "0 0 14px 4px #f9d423" : "none",
-              transition: "border 0.2s, box-shadow 0.2s",
-              zIndex: 1,
-            }}
-          />
-        );
-        if (idx === progress) {
-          //style.background = "linear-gradient(135deg, #f9d423 0%, #ff4e50 100%)";
-        }
-      }
+    assets.loadAll().then(() => {
+      setAssetsLoaded(true);
     });
+  }, []);
 
-    return (
-      <div key={`${x}-${y}`} style={style} title={x + "," + y}>
-        {content}
-      </div>
-    );
-  }
+  // Sync settings changes to localStorage and audio
+  useEffect(() => {
+    localStorage.setItem("th_settings", JSON.stringify(settings));
+    if (settings.ambience && !started) {
+      ambiencePlayer.setVolume(settings.volume);
+    } else {
+      ambiencePlayer.stop();
+    }
+  }, [settings, started]);
+
+  // Title ambience autoplay on first user interaction
+  useEffect(() => {
+    if (!started && settings.ambience) {
+      const handleFirstInteraction = () => {
+        ambiencePlayer.start(settings.volume);
+        window.removeEventListener("click", handleFirstInteraction);
+        window.removeEventListener("keydown", handleFirstInteraction);
+      };
+      window.addEventListener("click", handleFirstInteraction);
+      window.addEventListener("keydown", handleFirstInteraction);
+
+      return () => {
+        window.removeEventListener("click", handleFirstInteraction);
+        window.removeEventListener("keydown", handleFirstInteraction);
+      };
+    }
+  }, [started, settings.ambience, settings.volume]);
+
+  const handleNameChange = (e) => {
+    const val = e.target.value.slice(0, 16);
+    setPlayerName(val);
+    localStorage.setItem("th_playername", val);
+  };
+
+  const handleSelectCharacter = (id) => {
+    setSelectedCharacter(id);
+    localStorage.setItem("th_selected_char", id);
+  };
+
+  const updateSetting = (key, val) => {
+    setSettings((prev) => ({ ...prev, [key]: val }));
+  };
+
+  const startGame = () => {
+    ambiencePlayer.stop();
+    setStarted(true);
+    setGameOver(false);
+    setScore(0);
+    setLevel(1);
+    setGameKey((k) => k + 1);
+  };
+
+  const handleScoreUpdate = (points) => {
+    setScore((s) => s + points);
+  };
+
+  const handleLevelComplete = (newLevel) => {
+    setLevel(newLevel);
+  };
+
+  const handleGameOver = () => {
+    setGameOver(true);
+    if (score > highScore) {
+      setHighScore(score);
+      localStorage.setItem("th_highscore", score.toString());
+    }
+  };
+
+  const currentCharacter =
+    CHARACTER_ROSTER.find((c) => c.id === selectedCharacter) || CHARACTER_ROSTER[0];
 
   return (
-    <div className="treasure-bg">
-      <h1 className="game-title">🏴‍☠️ Riddle Treasure Hunt</h1>
-      <div className="game-board">
-        {Array.from({ length: GRID_SIZE }).map((_, y) => (
-          <div key={y} style={{ display: "flex" }}>
-            {Array.from({ length: GRID_SIZE }).map((_, x) => renderCell(x, y))}
-          </div>
-        ))}
-      </div>
-      <div className="clue-panel">
-        {winner ? (
-          <h2 className="winner-msg">🎉 You found the treasure! Congratulations! 🎉</h2>
-        ) : showRiddle ? (
-          <>
-            <h3 className="riddle-title">Checkpoint Riddle:</h3>
-            <p className="riddle-text">{playerRiddles[progress].riddle}</p>
-            <input
-              type="text"
-              value={riddleInput}
-              onChange={e => setRiddleInput(e.target.value)}
-              onKeyDown={e => { if (e.key === "Enter") handleRiddleSubmit(); }}
-              placeholder="Enter your one-word answer"
-              className={`riddle-input${riddleError ? " error" : ""}`}
-              autoFocus
-            />
-            {riddleError && <p className="riddle-error">Incorrect answer, try again.</p>}
-            <button className="riddle-btn" onClick={handleRiddleSubmit}>
-              Submit
-            </button>
-          </>
-        ) : (
-          <p className="clue-text">
-            <span className="clue-label">Clue:</span> {checkpointClues[currentCheckpoint]}
-          </p>
-        )}
-      </div>
-      {!winner && !showRiddle && (
-        <div className="controls">
-          <button className="move-btn" onClick={() => movePlayer(-1, 0)}>⬅️</button>
-          <button className="move-btn" onClick={() => movePlayer(1, 0)}>➡️</button>
-          <button className="move-btn" onClick={() => movePlayer(0, -1)}>⬆️</button>
-          <button className="move-btn" onClick={() => movePlayer(0, 1)}>⬇️</button>
+    <div
+      className={`app-container ${
+        gameOver && settings.screenShake ? "shake-screen" : ""
+      }`}
+    >
+      {!started ? (
+        <div className="home-screen-wrapper">
+          <DarkForestBackground />
+
+          {/* Top Header Bar */}
+          <header className="home-topbar">
+            <div className="topbar-left">
+              <span className="highscore-badge">
+                BEST RECORD: <strong>{highScore}</strong>
+              </span>
+            </div>
+            <div className="topbar-right">
+              <button
+                className={`topbar-btn ${settings.ambience ? "active" : ""}`}
+                onClick={() => {
+                  const nextAmbience = !settings.ambience;
+                  updateSetting("ambience", nextAmbience);
+                  if (nextAmbience) ambiencePlayer.start(settings.volume);
+                  else ambiencePlayer.stop();
+                }}
+                title="Toggle Forest Ambience"
+              >
+                {settings.ambience ? "AMBIENCE: ON" : "AMBIENCE: OFF"}
+              </button>
+              <button
+                className="topbar-btn"
+                onClick={() => setShowSettings(true)}
+                title="Open Settings"
+              >
+                SETTINGS
+              </button>
+            </div>
+          </header>
+
+          {/* Main Content Area */}
+          <main className="home-main-card">
+            {/* Hero Title Line */}
+            <div className="home-hero-title-wrap">
+              <h1 className="home-hero-title">TREASURE HUNT</h1>
+              <p className="home-hero-subtitle">THE SHADOWED WOODS</p>
+            </div>
+
+            {/* Character Selection Roster */}
+            <div className="roster-section">
+              <div className="character-grid">
+                {CHARACTER_ROSTER.map((char) => {
+                  const isSelected = char.id === selectedCharacter;
+                  const thumb = assets.getCharacterThumb(char.id);
+
+                  return (
+                    <div
+                      key={char.id}
+                      className={`char-card ${isSelected ? "selected" : ""}`}
+                      onClick={() => handleSelectCharacter(char.id)}
+                    >
+                      <div className="char-portrait-frame">
+                        {thumb ? (
+                          <img
+                            src={thumb}
+                            alt={char.name}
+                            className="char-portrait-img"
+                          />
+                        ) : (
+                          <div className="char-portrait-placeholder">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+                              <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z" />
+                            </svg>
+                          </div>
+                        )}
+                        {isSelected && <div className="selected-glow-ring"></div>}
+                      </div>
+
+                      <div className="char-info">
+                        <div className="char-name-title">
+                          <span className="char-name">{char.name}</span>
+                          <span className="char-title">{char.title}</span>
+                        </div>
+                        <div className="char-perk-box">
+                          <span className="perk-label">
+                            {char.perkTitle}
+                          </span>
+                          <span className="perk-text">{char.perkDesc}</span>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Action Bar */}
+            <div className="action-bar">
+              <button
+                className="start-btn hero-start-btn pulse-btn"
+                onClick={startGame}
+              >
+                ENTER THE WOODS
+              </button>
+            </div>
+          </main>
+
+          {/* Settings & Guide Modal */}
+          {showSettings && (
+            <div
+              className="modal-overlay"
+              onClick={() => setShowSettings(false)}
+            >
+              <div
+                className="settings-modal"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="modal-header">
+                  <div className="modal-tabs">
+                    <button
+                      className={`modal-tab ${
+                        settingsTab === "settings" ? "active" : ""
+                      }`}
+                      onClick={() => setSettingsTab("settings")}
+                    >
+                      SETTINGS
+                    </button>
+                    <button
+                      className={`modal-tab ${
+                        settingsTab === "guide" ? "active" : ""
+                      }`}
+                      onClick={() => setSettingsTab("guide")}
+                    >
+                      SURVIVAL FIELD GUIDE
+                    </button>
+                  </div>
+                  <button
+                    className="modal-close-btn"
+                    onClick={() => setShowSettings(false)}
+                    aria-label="Close"
+                  >
+                    &times;
+                  </button>
+                </div>
+
+                <div className="modal-body">
+                  {settingsTab === "settings" ? (
+                    <div className="settings-panel">
+                      <div className="setting-row">
+                        <div className="setting-label-block">
+                          <span className="setting-title">Survivor Identity</span>
+                          <span className="setting-desc">
+                            Your callsign in the woods and upon the ledger of the fallen.
+                          </span>
+                        </div>
+                        <div className="setting-control">
+                          <input
+                            type="text"
+                            value={playerName}
+                            onChange={handleNameChange}
+                            maxLength={16}
+                            placeholder="Survivor"
+                            className="styled-name-input"
+                            style={{ maxWidth: 170, padding: "8px 12px", fontSize: "0.95rem" }}
+                          />
+                        </div>
+                      </div>
+
+                      <div className="setting-row">
+                        <div className="setting-label-block">
+                          <span className="setting-title">Master Audio Volume</span>
+                          <span className="setting-desc">
+                            Controls all sound effects, footfalls, and ambience.
+                          </span>
+                        </div>
+                        <div className="setting-control">
+                          <input
+                            type="range"
+                            min="0"
+                            max="1"
+                            step="0.05"
+                            value={settings.volume}
+                            onChange={(e) =>
+                              updateSetting(
+                                "volume",
+                                parseFloat(e.target.value)
+                              )
+                            }
+                            className="volume-slider"
+                          />
+                          <span className="volume-val">
+                            {Math.round(settings.volume * 100)}%
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="setting-row">
+                        <div className="setting-label-block">
+                          <span className="setting-title">Sound Effects (SFX)</span>
+                          <span className="setting-desc">
+                            Heartbeats, level chimes, torch refuels.
+                          </span>
+                        </div>
+                        <button
+                          className={`toggle-btn ${
+                            settings.sfxEnabled ? "on" : "off"
+                          }`}
+                          onClick={() =>
+                            updateSetting("sfxEnabled", !settings.sfxEnabled)
+                          }
+                        >
+                          {settings.sfxEnabled ? "ENABLED" : "MUTED"}
+                        </button>
+                      </div>
+
+                      <div className="setting-row">
+                        <div className="setting-label-block">
+                          <span className="setting-title">Screen Shake</span>
+                          <span className="setting-desc">
+                            Camera impact tremors upon fatal strikes.
+                          </span>
+                        </div>
+                        <button
+                          className={`toggle-btn ${
+                            settings.screenShake ? "on" : "off"
+                          }`}
+                          onClick={() =>
+                            updateSetting("screenShake", !settings.screenShake)
+                          }
+                        >
+                          {settings.screenShake ? "ENABLED" : "DISABLED"}
+                        </button>
+                      </div>
+
+                      <div className="setting-row">
+                        <div className="setting-label-block">
+                          <span className="setting-title">Forest Wind Ambience</span>
+                          <span className="setting-desc">
+                            Procedural cold wind howling on the home menu.
+                          </span>
+                        </div>
+                        <button
+                          className={`toggle-btn ${
+                            settings.ambience ? "on" : "off"
+                          }`}
+                          onClick={() => {
+                            const next = !settings.ambience;
+                            updateSetting("ambience", next);
+                            if (next) ambiencePlayer.start(settings.volume);
+                            else ambiencePlayer.stop();
+                          }}
+                        >
+                          {settings.ambience ? "PLAYING" : "MUTED"}
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="guide-panel">
+                      <div className="guide-card">
+                        <h4>TORCH FUEL & SPRINT</h4>
+                        <p>
+                          Your torch continuously burns out. Collect lit wall/tree
+                          torches to recover +500 fuel. Hold <strong>SHIFT</strong> or{" "}
+                          <strong>SPACE</strong> to Sprint away from pursuers, but
+                          beware: sprinting burns fuel 1.8x faster!
+                        </p>
+                      </div>
+
+                      <div className="guide-card">
+                        <h4>RING OF PROTECTION (ANCIENT SHRINES)</h4>
+                        <p>
+                          Ancient Shrines and Gazebos scattered through the woods can
+                          be consecrated upon approach. When activated, a glowing{" "}
+                          <strong>Ring of Protection</strong> appears. Standing
+                          inside makes you completely impervious to enemies, and
+                          shoves hunters and phantoms backwards!
+                        </p>
+                      </div>
+
+                      <div className="guide-card">
+                        <h4>HUNTERS VS. PHANTOMS</h4>
+                        <p>
+                          <strong>Hunters (Red Chevrons):</strong> Physical stalkers.
+                          They cannot walk through trees or rocks. Duck into groves to
+                          shake them off.
+                        </p>
+                        <p>
+                          <strong>Phantoms (Cyan Chevrons):</strong> Ethereal spirits
+                          that glide through trees and obstacles. Use your Sprint burst
+                          or reach a Ring of Protection to survive!
+                        </p>
+                      </div>
+
+                      <div className="guide-card">
+                        <h4>LEVEL PROGRESSION</h4>
+                        <p>
+                          Surviving and picking up torches earns Score. Reaching 35,
+                          80, 140, and 220 points advances your Level, unlocking new
+                          zones, fuel bonuses, and escalating night stalkers.
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <div className="modal-footer">
+                  <button
+                    className="start-btn modal-done-btn"
+                    onClick={() => setShowSettings(false)}
+                  >
+                    SAVE & CLOSE
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
+      ) : (
+        <>
+          <GameCanvas
+            key={gameKey}
+            level={level}
+            score={score}
+            characterId={selectedCharacter}
+            playerName={playerName}
+            settings={settings}
+            onScoreUpdate={handleScoreUpdate}
+            onLevelComplete={handleLevelComplete}
+            onGameOver={handleGameOver}
+          />
+
+          {/* In-Game HUD */}
+          <div className="hud-score">
+            <div className="hud-player-identity">
+              <span className="hud-player-name">{playerName}</span>
+              <span className="hud-char-badge">{currentCharacter.title}</span>
+            </div>
+            <div className="hud-stats-row">
+              <span className="hud-score-val">SCORE: {score}</span>
+              <span className="hud-level-val">LEVEL: {level}</span>
+            </div>
+          </div>
+
+          {/* Death Screen Modal */}
+          {gameOver && (
+            <div className="modal-overlay death-screen">
+              <img
+                src="/assets/phantom_portrait.jpg"
+                alt="The Phantom"
+                className="death-portrait"
+              />
+              <h1 className="death-title">YOU DIED</h1>
+              <div className="death-subtitle">
+                {playerName.toUpperCase()} WAS CLAIMED BY THE WOODS
+              </div>
+              <div className="death-details">
+                <span className="death-character-info">
+                  Character: {currentCharacter.name} ({currentCharacter.title})
+                </span>
+                <span className="death-score-info">Final Score: {score}</span>
+                <span className="death-high-info">Best Record: {highScore}</span>
+              </div>
+              <div className="death-btn-group">
+                <button
+                  className="start-btn restart-btn"
+                  onClick={startGame}
+                >
+                  TRY AGAIN
+                </button>
+                <button
+                  className="start-btn return-home-btn"
+                  onClick={() => {
+                    setStarted(false);
+                    setGameOver(false);
+                  }}
+                >
+                  RETURN TO CAMP
+                </button>
+              </div>
+            </div>
+          )}
+        </>
       )}
     </div>
   );

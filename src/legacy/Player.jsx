@@ -6,7 +6,7 @@ import React from "react";
       <h2>{name}</h2>
       <p>
         {finished
-          ? "🎉 You found the treasure!"
+          ? "You found the treasure!"
           : `Clue ${progress + 1}: ${clues[progress]}`}
       </p>
       {!finished && (
