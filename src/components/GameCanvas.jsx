@@ -2,6 +2,7 @@ import React, { useRef, useEffect } from 'react';
 import { InputHandler } from '../engine/Input';
 import { Physics } from '../engine/Physics';
 import { assets, drawSprite, drawAnimatedPortal, SPRITE_DEFS, CHARACTER_ROSTER } from '../engine/Assets';
+import { soundManager } from '../engine/SoundManager';
 import { WorldGenerator } from '../engine/WorldGenerator';
 
 // --- Constants ---
@@ -36,7 +37,6 @@ export default function GameCanvas({
     const characterDef = CHARACTER_ROSTER.find(c => c.id === characterId) || CHARACTER_ROSTER[0];
     const perk = characterDef.perk;
 
-    const audioCtxRef = useRef(null);
     const lastHeartbeatRef = useRef(0);
 
     const scoreRef = useRef(score);
@@ -77,84 +77,17 @@ export default function GameCanvas({
         inSanctuary: false
     });
 
-    // Audio helper for heartbeat, level up, refuel, and deflect
+    // Sync settings to soundManager
+    useEffect(() => {
+        soundManager.setSettings(settings);
+    }, [settings]);
+
+    // Audio helper delegating to soundManager
     const playSound = (type, intensity = 1) => {
-        if (settings && settings.sfxEnabled === false) return;
-        const masterVol = (settings && typeof settings.volume === 'number') ? settings.volume : 0.8;
-
-        try {
-            if (!audioCtxRef.current) {
-                const AudioCtx = window.AudioContext || window.webkitAudioContext;
-                if (AudioCtx) audioCtxRef.current = new AudioCtx();
-            }
-            const ctx = audioCtxRef.current;
-            if (!ctx) return;
-            if (ctx.state === 'suspended') ctx.resume();
-
-            if (type === 'heartbeat') {
-                [0, 0.12].forEach(offset => {
-                    const osc = ctx.createOscillator();
-                    const gain = ctx.createGain();
-                    osc.type = 'sine';
-                    const startTime = ctx.currentTime + offset;
-                    osc.frequency.setValueAtTime(60, startTime);
-                    osc.frequency.exponentialRampToValueAtTime(28, startTime + 0.14);
-
-                    gain.gain.setValueAtTime(0.32 * intensity * masterVol, startTime);
-                    gain.gain.exponentialRampToValueAtTime(0.001, startTime + 0.15);
-
-                    osc.connect(gain);
-                    gain.connect(ctx.destination);
-                    osc.start(startTime);
-                    osc.stop(startTime + 0.16);
-                });
-            } else if (type === 'levelup') {
-                // Mystical arpeggio chime
-                [261.63, 329.63, 392.00, 523.25].forEach((freq, i) => {
-                    const osc = ctx.createOscillator();
-                    const gain = ctx.createGain();
-                    osc.type = 'triangle';
-                    const t = ctx.currentTime + i * 0.08;
-                    osc.frequency.setValueAtTime(freq, t);
-                    gain.gain.setValueAtTime(0.25 * masterVol, t);
-                    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.4);
-
-                    osc.connect(gain);
-                    gain.connect(ctx.destination);
-                    osc.start(t);
-                    osc.stop(t + 0.42);
-                });
-            } else if (type === 'refuel') {
-                const osc = ctx.createOscillator();
-                const gain = ctx.createGain();
-                osc.type = 'sine';
-                const t = ctx.currentTime;
-                osc.frequency.setValueAtTime(300, t);
-                osc.frequency.exponentialRampToValueAtTime(600, t + 0.2);
-                gain.gain.setValueAtTime(0.22 * masterVol, t);
-                gain.gain.exponentialRampToValueAtTime(0.001, t + 0.22);
-                osc.connect(gain);
-                gain.connect(ctx.destination);
-                osc.start(t);
-                osc.stop(t + 0.24);
-            } else if (type === 'deflect') {
-                // Heavy metallic parry & shockwave chime
-                const osc = ctx.createOscillator();
-                const gain = ctx.createGain();
-                osc.type = 'triangle';
-                const t = ctx.currentTime;
-                osc.frequency.setValueAtTime(820, t);
-                osc.frequency.exponentialRampToValueAtTime(140, t + 0.35);
-                gain.gain.setValueAtTime(0.45 * masterVol, t);
-                gain.gain.exponentialRampToValueAtTime(0.001, t + 0.38);
-                osc.connect(gain);
-                gain.connect(ctx.destination);
-                osc.start(t);
-                osc.stop(t + 0.4);
-            }
-        } catch {
-            // Audio silent fallback
-        }
+        if (type === 'heartbeat') soundManager.playHeartbeat(intensity);
+        else if (type === 'levelup') soundManager.playLevelUp();
+        else if (type === 'refuel') soundManager.playRefuel();
+        else if (type === 'deflect') soundManager.playDeflect();
     };
 
     // Load assets on mount
@@ -172,12 +105,13 @@ export default function GameCanvas({
         };
     }, []);
 
-    // Cleanup audio context on unmount
+    // Cleanup audio loops on unmount
     useEffect(() => {
         return () => {
-            if (audioCtxRef.current && audioCtxRef.current.state !== 'closed') {
-                audioCtxRef.current.close().catch(() => {});
-            }
+            soundManager.stopLoop('torchFire');
+            soundManager.stopLoop('walk');
+            soundManager.stopLoop('run');
+            soundManager.stopLoop('chaseTension');
         };
     }, []);
 
@@ -295,16 +229,18 @@ export default function GameCanvas({
             state.player.walkPhase += playerSpeed * 0.07;
             phys.moveEntity(state.player, dx, dy, playerSpeed);
 
-            // Sprint dust & ember trail
-            if (isSprinting && Math.random() < 0.45) {
+            // Subtle ground dust kicked up from shoes/boots (strictly earth-toned, at ground level)
+            const dustChance = isSprinting ? 0.55 : 0.08;
+            if (Math.random() < dustChance) {
+                const footSpread = (Math.random() - 0.5) * 8;
                 state.particles.push({
-                    x: state.player.x - Math.cos(state.player.angle) * 10 + (Math.random() - 0.5) * 6,
-                    y: state.player.y - Math.sin(state.player.angle) * 10 + (Math.random() - 0.5) * 6,
-                    dx: -Math.cos(state.player.angle) * 1.2 + (Math.random() - 0.5) * 0.6,
-                    dy: -Math.sin(state.player.angle) * 1.2 + (Math.random() - 0.5) * 0.6,
-                    life: 20,
-                    color: Math.random() < 0.6 ? '#FFA500' : '#FFD700',
-                    size: Math.random() * 2 + 1.2
+                    x: state.player.x - Math.cos(state.player.angle) * 8 + footSpread,
+                    y: state.player.y + 3 + Math.random() * 3, // Feet at bottom of character sprite
+                    dx: -Math.cos(state.player.angle) * (isSprinting ? 1.3 : 0.4) + (Math.random() - 0.5) * 0.4,
+                    dy: -Math.sin(state.player.angle) * 0.4 - Math.random() * 0.25,
+                    life: isSprinting ? 22 : 16,
+                    color: Math.random() < 0.5 ? 'rgba(105, 90, 75, 0.45)' : 'rgba(130, 115, 95, 0.35)', // Translucent dirt/earth
+                    size: Math.random() * 2.5 + (isSprinting ? 2.4 : 1.6)
                 });
             }
         }
@@ -322,7 +258,7 @@ export default function GameCanvas({
             if (Math.random() < 0.3) {
                 state.particles.push({
                     x: state.player.x + (Math.random() - 0.5) * 20,
-                    y: state.player.y + (Math.random() - 0.5) * 15,
+                    y: state.player.y - 10 + (Math.random() - 0.5) * 15,
                     dx: (Math.random() - 0.5) * 0.5,
                     dy: -Math.random() * 1.5 - 0.5,
                     life: 25,
@@ -336,23 +272,28 @@ export default function GameCanvas({
             state.player.fuel = 0;
             if (!state.player.dead) {
                 state.player.dead = true;
+                soundManager.triggerDeath();
                 if (callbacksRef.current.onGameOver) callbacksRef.current.onGameOver();
             }
             return;
-        } else if (Math.random() < 0.35) {
-            // Embers drifting from torch
-            const torchDist = 28;
-            const torchAngle = state.player.angle - 0.25;
-            const tx = state.player.x + Math.cos(torchAngle) * torchDist;
-            const ty = state.player.y + Math.sin(torchAngle) * torchDist;
+        } else if (state.player.fuel > 0 && Math.random() < 0.38) {
+            // Embers and dark soot flakes emitting directly from the raised torch flame
+            // Matches drawCharacter: torch flame is at (x + facing * 19, y - 38)
+            const facing = state.player.facing || 1;
+            const flameX = state.player.x + facing * 19;
+            const flameY = state.player.y - 38;
+            const isSoot = Math.random() < 0.22; // 22% dark soot/ash, 78% glowing fiery embers
+
             state.particles.push({
-                x: tx + (Math.random() - 0.5) * 6,
-                y: ty + (Math.random() - 0.5) * 6,
-                dx: (Math.random() - 0.5) * 1.5,
-                dy: -Math.random() * 2 - 0.8,
-                life: 25 + Math.random() * 15,
-                color: Math.random() < 0.6 ? '#FFA500' : '#FFD700',
-                size: Math.random() * 2.5 + 1.5
+                x: flameX + (Math.random() - 0.5) * 5,
+                y: flameY + (Math.random() - 0.5) * 5,
+                dx: (Math.random() - 0.5) * 0.8 + (facing * 0.25),
+                dy: -Math.random() * 1.8 - 0.9, // Strong thermal updraft rising into the sky
+                life: 28 + Math.random() * 16,
+                color: isSoot
+                    ? 'rgba(40, 32, 28, 0.75)' // Charcoal dark soot flake
+                    : (Math.random() < 0.6 ? '#FFA500' : (Math.random() < 0.5 ? '#FFD700' : '#FF4500')), // Glowing flame ember
+                size: isSoot ? (Math.random() * 1.8 + 1.2) : (Math.random() * 2.4 + 1.2)
             });
         }
 
@@ -478,6 +419,7 @@ export default function GameCanvas({
         const config = LEVEL_CONFIGS[Math.min(state.currentLevel - 1, LEVEL_CONFIGS.length - 1)];
         const speedMult = config.speedMult;
         let minThreatDist = 9999;
+        let isChased = false;
 
         // Torin's Iron Resolve / Lethal Blow Handler
         const handleLethalContact = (enemy) => {
@@ -513,6 +455,7 @@ export default function GameCanvas({
             }
 
             state.player.dead = true;
+            soundManager.triggerDeath();
             if (callbacksRef.current.onGameOver) callbacksRef.current.onGameOver();
         };
 
@@ -548,6 +491,7 @@ export default function GameCanvas({
 
             if (e.state === 'chase' || e.state === 'alert') {
                 if (distToPlayer < minThreatDist) minThreatDist = distToPlayer;
+                if (e.state === 'chase') isChased = true;
             }
 
             if (e.type === 'ghost') {
@@ -558,7 +502,11 @@ export default function GameCanvas({
                 const ghostDetectRange = perk.ghostStealth ? 140 : 250;
 
                 if (distToPlayer < ghostDetectRange) {
+                    if (e.state !== 'chase') {
+                        soundManager.triggerGhostStalk();
+                    }
                     e.state = 'chase';
+                    isChased = true;
                     const angleToPlayer = Math.atan2(state.player.y - e.y, state.player.x - e.x);
                     e.angle = angleToPlayer;
 
@@ -616,12 +564,14 @@ export default function GameCanvas({
                         e.timer = 16;
                         e.angle = Math.atan2(state.player.y - e.y, state.player.x - e.x);
                         spawnParticles(e.x, e.y, '#FF3333', 4);
+                        soundManager.triggerHunterAlert();
                     }
                 } else if (e.state === 'alert') {
                     e.angle = Math.atan2(state.player.y - e.y, state.player.x - e.x);
                     e.timer--;
                     if (e.timer <= 0) e.state = 'chase';
                 } else if (e.state === 'chase') {
+                    isChased = true;
                     const angleToPlayer = Math.atan2(state.player.y - e.y, state.player.x - e.x);
                     e.angle = angleToPlayer;
                     const dx = Math.cos(e.angle);
@@ -659,6 +609,24 @@ export default function GameCanvas({
                 playSound('heartbeat', 0.3 + urgency * 0.7);
             }
         }
+
+        // Dynamic Audio Updates (Footsteps, Torch Fire, Threat Tension)
+        soundManager.updateMovement({
+            isMoving: state.player.moving,
+            isSprinting: state.player.isSprinting,
+            dead: state.player.dead
+        });
+
+        soundManager.updateTorch({
+            fuelRatio: state.player.fuel / MAX_FUEL,
+            dead: state.player.dead
+        });
+
+        soundManager.updateThreatTension({
+            minThreatDist,
+            isChased,
+            dead: state.player.dead
+        });
 
         // 9. Update Portal Animation Frame
         state.portalFrame += 0.15;

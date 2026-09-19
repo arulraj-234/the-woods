@@ -2,102 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import "./App.css";
 import GameCanvas from "./components/GameCanvas";
 import { assets, CHARACTER_ROSTER } from "./engine/Assets";
-
-// --- Ambient Forest Audio Synthesizer ---
-class ForestAmbience {
-  constructor() {
-    this.ctx = null;
-    this.isPlaying = false;
-    this.gainNode = null;
-    this.nodes = null;
-  }
-
-  start(volume = 0.5) {
-    if (this.isPlaying) return;
-    try {
-      const AudioCtx = window.AudioContext || window.webkitAudioContext;
-      if (!AudioCtx) return;
-      this.ctx = new AudioCtx();
-      if (this.ctx.state === "suspended") this.ctx.resume();
-
-      this.gainNode = this.ctx.createGain();
-      this.gainNode.gain.setValueAtTime(volume * 0.28, this.ctx.currentTime);
-      this.gainNode.connect(this.ctx.destination);
-
-      // Wind noise generator (filtered pink/brownian noise)
-      const bufferSize = this.ctx.sampleRate * 2;
-      const noiseBuffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
-      const output = noiseBuffer.getChannelData(0);
-      let b0 = 0, b1 = 0, b2 = 0;
-      for (let i = 0; i < bufferSize; i++) {
-        const white = Math.random() * 2 - 1;
-        b0 = 0.99 * b0 + white * 0.05;
-        b1 = 0.96 * b1 + white * 0.11;
-        b2 = 0.86 * b2 + white * 0.25;
-        output[i] = (b0 + b1 + b2) * 0.35;
-      }
-
-      const whiteNoise = this.ctx.createBufferSource();
-      whiteNoise.buffer = noiseBuffer;
-      whiteNoise.loop = true;
-
-      // Bandpass filter for wind howl sweep
-      const filter = this.ctx.createBiquadFilter();
-      filter.type = "bandpass";
-      filter.frequency.setValueAtTime(260, this.ctx.currentTime);
-      filter.Q.setValueAtTime(2.5, this.ctx.currentTime);
-
-      const lfo = this.ctx.createOscillator();
-      lfo.frequency.setValueAtTime(0.12, this.ctx.currentTime);
-      const lfoGain = this.ctx.createGain();
-      lfoGain.gain.setValueAtTime(130, this.ctx.currentTime);
-      lfo.connect(lfoGain);
-      lfoGain.connect(filter.frequency);
-
-      whiteNoise.connect(filter);
-      filter.connect(this.gainNode);
-
-      // Low bass wood drone (55 Hz)
-      const sub = this.ctx.createOscillator();
-      sub.type = "sine";
-      sub.frequency.setValueAtTime(55, this.ctx.currentTime);
-      const subGain = this.ctx.createGain();
-      subGain.gain.setValueAtTime(0.3, this.ctx.currentTime);
-      sub.connect(subGain);
-      subGain.connect(this.gainNode);
-
-      whiteNoise.start();
-      lfo.start();
-      sub.start();
-
-      this.nodes = { whiteNoise, lfo, sub };
-      this.isPlaying = true;
-    } catch (e) {
-      console.warn("Ambience audio failed to start", e);
-    }
-  }
-
-  setVolume(vol) {
-    if (this.gainNode && this.ctx) {
-      this.gainNode.gain.setValueAtTime(vol * 0.28, this.ctx.currentTime);
-    }
-  }
-
-  stop() {
-    if (!this.isPlaying) return;
-    try {
-      if (this.nodes) {
-        if (this.nodes.whiteNoise) this.nodes.whiteNoise.stop();
-        if (this.nodes.lfo) this.nodes.lfo.stop();
-        if (this.nodes.sub) this.nodes.sub.stop();
-      }
-      if (this.ctx && this.ctx.state !== "closed") this.ctx.close();
-    } catch {}
-    this.isPlaying = false;
-  }
-}
-
-const ambiencePlayer = new ForestAmbience();
+import { soundManager } from "./engine/SoundManager";
 
 // --- Dark Forest Animated Background ---
 function DarkForestBackground() {
@@ -286,30 +191,35 @@ export default function App() {
   // Sync settings changes to localStorage and audio
   useEffect(() => {
     localStorage.setItem("th_settings", JSON.stringify(settings));
-    if (settings.ambience && screen !== "game") {
-      ambiencePlayer.setVolume(settings.volume);
+    soundManager.setSettings(settings);
+    if (screen === "game") {
+      soundManager.playGameAmbience();
     } else {
-      ambiencePlayer.stop();
+      soundManager.playMenuAmbience();
     }
   }, [settings, screen]);
 
   // Title ambience autoplay on first user interaction
   useEffect(() => {
-    if (screen !== "game" && settings.ambience) {
-      const handleFirstInteraction = () => {
-        ambiencePlayer.start(settings.volume);
-        window.removeEventListener("click", handleFirstInteraction);
-        window.removeEventListener("keydown", handleFirstInteraction);
-      };
-      window.addEventListener("click", handleFirstInteraction);
-      window.addEventListener("keydown", handleFirstInteraction);
+    const handleFirstInteraction = () => {
+      soundManager.unlock();
+      soundManager.setSettings(settings);
+      if (screen === "game") {
+        soundManager.playGameAmbience();
+      } else {
+        soundManager.playMenuAmbience();
+      }
+      window.removeEventListener("click", handleFirstInteraction);
+      window.removeEventListener("keydown", handleFirstInteraction);
+    };
+    window.addEventListener("click", handleFirstInteraction);
+    window.addEventListener("keydown", handleFirstInteraction);
 
-      return () => {
-        window.removeEventListener("click", handleFirstInteraction);
-        window.removeEventListener("keydown", handleFirstInteraction);
-      };
-    }
-  }, [screen, settings.ambience, settings.volume]);
+    return () => {
+      window.removeEventListener("click", handleFirstInteraction);
+      window.removeEventListener("keydown", handleFirstInteraction);
+    };
+  }, [screen, settings]);
 
   const handleNameChange = (e) => {
     const val = e.target.value.slice(0, 16);
@@ -374,7 +284,8 @@ export default function App() {
   };
 
   const startGame = () => {
-    ambiencePlayer.stop();
+    soundManager.playGameAmbience();
+    soundManager.triggerCineBoom();
     setScreen("game");
     setGameOver(false);
     setScore(0);
@@ -391,6 +302,7 @@ export default function App() {
   };
 
   const handleGameOver = () => {
+    soundManager.triggerDeath();
     setGameOver(true);
     if (score > highScore) {
       setHighScore(score);
@@ -426,10 +338,7 @@ export default function App() {
               <button
                 className={`topbar-btn ${settings.ambience ? "active" : ""}`}
                 onClick={() => {
-                  const nextAmbience = !settings.ambience;
-                  updateSetting("ambience", nextAmbience);
-                  if (nextAmbience) ambiencePlayer.start(settings.volume);
-                  else ambiencePlayer.stop();
+                  updateSetting("ambience", !settings.ambience);
                 }}
                 title="Toggle Forest Ambience"
               >
@@ -847,10 +756,7 @@ export default function App() {
                             settings.ambience ? "on" : "off"
                           }`}
                           onClick={() => {
-                            const next = !settings.ambience;
-                            updateSetting("ambience", next);
-                            if (next) ambiencePlayer.start(settings.volume);
-                            else ambiencePlayer.stop();
+                            updateSetting("ambience", !settings.ambience);
                           }}
                         >
                           {settings.ambience ? "PLAYING" : "MUTED"}
@@ -975,6 +881,7 @@ export default function App() {
                   onClick={() => {
                     setScreen("base_camp");
                     setGameOver(false);
+                    soundManager.playMenuAmbience();
                   }}
                 >
                   RETURN TO CAMP
