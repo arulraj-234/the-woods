@@ -172,6 +172,7 @@ class SoundManager {
             this.safePause(this.loops.walk);
             const runAudio = this.loops.run;
             if (runAudio) {
+                runAudio.playbackRate = 1.22;
                 runAudio.volume = 0.55 * this.masterVolume;
                 if (runAudio.paused) this.safePlay(runAudio);
             }
@@ -179,6 +180,7 @@ class SoundManager {
             this.safePause(this.loops.run);
             const walkAudio = this.loops.walk;
             if (walkAudio) {
+                walkAudio.playbackRate = 1.1;
                 walkAudio.volume = 0.38 * this.masterVolume;
                 if (walkAudio.paused) this.safePlay(walkAudio);
             }

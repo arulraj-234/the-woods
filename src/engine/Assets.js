@@ -301,7 +301,7 @@ export const CHARACTER_ROSTER = [
         perkTitle: 'Resolute Walker',
         perkDesc: 'Balanced survival traits: +5% speed, +15% fuel efficiency, and +20 bonus torch fuel.',
         unlocked: true,
-        perk: { speedMult: 1.05, fuelBurn: 0.85, sprintMult: 1.48, wardRadius: 1.0, threatRange: 450, torchBonus: 0, torchFuelBonus: 20 }
+        perk: { speedMult: 1.05, fuelBurn: 0.85, sprintMult: 1.55, wardRadius: 1.0, threatRange: 450, torchBonus: 0, torchFuelBonus: 20 }
     },
     {
         id: 'char_rogue',
@@ -309,9 +309,9 @@ export const CHARACTER_ROSTER = [
         title: 'The Shadow Walker',
         tagline: 'Swift scout trained to outrun what lurks in the mist.',
         perkTitle: 'Ghost Fleet',
-        perkDesc: '+12% Walk Speed & +18% Sprint Burst. Burns 30% less sprint fuel and slips past phantoms.',
+        perkDesc: '+14% Walk Speed & +25% Sprint Burst. Burns 30% less sprint fuel and slips past phantoms.',
         unlocked: true,
-        perk: { speedMult: 1.12, fuelBurn: 1.0, sprintMult: 1.68, sprintBurnMult: 1.25, wardRadius: 1.0, threatRange: 450, torchBonus: 0, ghostStealth: true }
+        perk: { speedMult: 1.14, fuelBurn: 1.0, sprintMult: 1.75, sprintBurnMult: 1.25, wardRadius: 1.0, threatRange: 450, torchBonus: 0, ghostStealth: true }
     },
     {
         id: 'char_hunter',
@@ -321,7 +321,7 @@ export const CHARACTER_ROSTER = [
         perkTitle: 'Ember Keeper',
         perkDesc: 'Torch burns 30% slower. Picks up torches from further away (+35% range) with +40 bonus fuel.',
         unlocked: true,
-        perk: { speedMult: 1.0, fuelBurn: 0.70, sprintMult: 1.45, wardRadius: 1.0, threatRange: 450, torchBonus: 0, torchFuelBonus: 40, pickupRangeMult: 1.35 }
+        perk: { speedMult: 1.0, fuelBurn: 0.70, sprintMult: 1.52, wardRadius: 1.0, threatRange: 450, torchBonus: 0, torchFuelBonus: 40, pickupRangeMult: 1.35 }
     },
     {
         id: 'char_warrior',
@@ -331,7 +331,7 @@ export const CHARACTER_ROSTER = [
         perkTitle: 'Aegis Ward',
         perkDesc: '+40% larger Ring of Protection radius. While inside sanctuary, torch fuel steadily regenerates!',
         unlocked: true,
-        perk: { speedMult: 1.0, fuelBurn: 1.0, sprintMult: 1.45, wardRadius: 1.40, threatRange: 450, torchBonus: 0, sanctuaryHeal: true }
+        perk: { speedMult: 1.0, fuelBurn: 1.0, sprintMult: 1.52, wardRadius: 1.40, threatRange: 450, torchBonus: 0, sanctuaryHeal: true }
     },
     {
         id: 'char_redhood',
@@ -339,9 +339,9 @@ export const CHARACTER_ROSTER = [
         title: 'The Crimson Tracker',
         tagline: 'Her senses are sharpened by generations surviving in the dark.',
         perkTitle: 'Predator Sight',
-        perkDesc: 'Heightened senses: Detects stalker chevrons up to 650px away, reveals predator eyes at 600px, and pulses an amber radar ping.',
+        perkDesc: 'Heightened senses: Detects stalker chevrons up to 650px away and reveals predator eyes in the dark at 600px.',
         unlocked: true,
-        perk: { speedMult: 1.02, fuelBurn: 0.95, sprintMult: 1.48, wardRadius: 1.0, threatRange: 650, eyeRange: 600, torchBonus: 0, radarPing: true }
+        perk: { speedMult: 1.06, fuelBurn: 0.95, sprintMult: 1.58, wardRadius: 1.0, threatRange: 650, eyeRange: 600, torchBonus: 0 }
     },
     {
         id: 'char_brawler',
@@ -351,7 +351,7 @@ export const CHARACTER_ROSTER = [
         perkTitle: 'Iron Resolve & Bounty',
         perkDesc: '+15 bonus score per torch (+30 total!). Iron Resolve: Deflects and knocks back the first lethal blow every 35s!',
         unlocked: true,
-        perk: { speedMult: 0.98, fuelBurn: 1.05, sprintMult: 1.42, wardRadius: 1.0, threatRange: 450, torchBonus: 15, ironStun: true }
+        perk: { speedMult: 0.98, fuelBurn: 1.05, sprintMult: 1.48, wardRadius: 1.0, threatRange: 450, torchBonus: 15, ironStun: true }
     }
 ];
 

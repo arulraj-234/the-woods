@@ -11,10 +11,10 @@ const FUEL_DECAY = 0.45;
 
 const LEVEL_CONFIGS = [
     { level: 1, minScore: 0, title: 'THE WHISPERING WOODS', hunters: 4, ghosts: 1, speedMult: 1.0 },
-    { level: 2, minScore: 35, title: 'THE CRIMSON THICKET', hunters: 5, ghosts: 2, speedMult: 1.08 },
-    { level: 3, minScore: 80, title: 'THE HAUNTED GROVE', hunters: 6, ghosts: 3, speedMult: 1.15 },
-    { level: 4, minScore: 140, title: 'THE ANCIENT RUINS', hunters: 8, ghosts: 4, speedMult: 1.22 },
-    { level: 5, minScore: 220, title: 'THE ENDLESS NIGHTMARE', hunters: 10, ghosts: 6, speedMult: 1.30 }
+    { level: 2, minScore: 30, title: 'THE CRIMSON THICKET', hunters: 5, ghosts: 2, speedMult: 1.12 },
+    { level: 3, minScore: 70, title: 'THE HAUNTED GROVE', hunters: 6, ghosts: 3, speedMult: 1.22 },
+    { level: 4, minScore: 120, title: 'THE ANCIENT RUINS', hunters: 8, ghosts: 4, speedMult: 1.32 },
+    { level: 5, minScore: 190, title: 'THE ENDLESS NIGHTMARE', hunters: 10, ghosts: 6, speedMult: 1.45 }
 ];
 
 export default function GameCanvas({
@@ -221,26 +221,26 @@ export default function GameCanvas({
         const isSprinting = isMoving && input.isSprinting() && state.player.fuel > 30;
         state.player.isSprinting = isSprinting;
 
-        const baseSpeed = 4 * (perk.speedMult || 1.0);
-        const playerSpeed = isSprinting ? baseSpeed * (perk.sprintMult || 1.45) : baseSpeed;
+        const baseSpeed = 5.8 * (perk.speedMult || 1.0);
+        const playerSpeed = isSprinting ? baseSpeed * (perk.sprintMult || 1.55) : baseSpeed;
 
         if (isMoving) {
             state.player.angle = Math.atan2(dy, dx);
-            state.player.walkPhase += playerSpeed * 0.07;
+            state.player.walkPhase += playerSpeed * 0.085;
             phys.moveEntity(state.player, dx, dy, playerSpeed);
 
             // Subtle ground dust kicked up from shoes/boots (strictly earth-toned, at ground level)
-            const dustChance = isSprinting ? 0.55 : 0.08;
+            const dustChance = isSprinting ? 0.6 : 0.08;
             if (Math.random() < dustChance) {
                 const footSpread = (Math.random() - 0.5) * 8;
                 state.particles.push({
                     x: state.player.x - Math.cos(state.player.angle) * 8 + footSpread,
                     y: state.player.y + 3 + Math.random() * 3, // Feet at bottom of character sprite
-                    dx: -Math.cos(state.player.angle) * (isSprinting ? 1.3 : 0.4) + (Math.random() - 0.5) * 0.4,
-                    dy: -Math.sin(state.player.angle) * 0.4 - Math.random() * 0.25,
-                    life: isSprinting ? 22 : 16,
+                    dx: -Math.cos(state.player.angle) * (isSprinting ? 1.8 : 0.6) + (Math.random() - 0.5) * 0.4,
+                    dy: -Math.sin(state.player.angle) * 0.5 - Math.random() * 0.3,
+                    life: isSprinting ? 20 : 15,
                     color: Math.random() < 0.5 ? 'rgba(105, 90, 75, 0.45)' : 'rgba(130, 115, 95, 0.35)', // Translucent dirt/earth
-                    size: Math.random() * 2.5 + (isSprinting ? 2.4 : 1.6)
+                    size: Math.random() * 2.5 + (isSprinting ? 2.6 : 1.6)
                 });
             }
         }
@@ -298,11 +298,11 @@ export default function GameCanvas({
         }
 
         // 5. Score Progression & Survival Points
-        if (state.time % 90 === 0) {
+        if (state.time % 60 === 0) {
             state.score = (state.score || 0) + 1;
             scoreRef.current = state.score;
             if (callbacksRef.current.onScoreUpdate) {
-                callbacksRef.current.onScoreUpdate(1); // Steady survival score (+1 point per 1.5s in the woods)
+                callbacksRef.current.onScoreUpdate(1); // Steady survival score (+1 point per 1.0s in the woods)
             }
         }
 
@@ -514,8 +514,8 @@ export default function GameCanvas({
                     const insideObstacle = phys.checkCollisionCircle(e.x, e.y, 12);
                     const obstacleDrag = insideObstacle ? 0.78 : 1.0;
 
-                    // Ghost Chase Speed: 2.55 * speedMult (Fast and supernatural)
-                    const ghostSpeed = 2.55 * speedMult * obstacleDrag;
+                    // Ghost Chase Speed: 4.6 * speedMult (Fast, terrifying supernatural surge)
+                    const ghostSpeed = 4.6 * speedMult * obstacleDrag;
                     e.x += Math.cos(e.angle) * ghostSpeed;
                     e.y += Math.sin(e.angle) * ghostSpeed;
 
@@ -533,10 +533,10 @@ export default function GameCanvas({
                     }
                 } else {
                     e.state = 'patrol';
-                    // Drift slowly in current angle
-                    e.x += Math.cos(e.angle) * 0.8;
-                    e.y += Math.sin(e.angle) * 0.8;
-                    if (Math.random() < 0.02) e.angle += (Math.random() - 0.5) * 1.5;
+                    // Drift briskly in current angle
+                    e.x += Math.cos(e.angle) * 1.5;
+                    e.y += Math.sin(e.angle) * 1.5;
+                    if (Math.random() < 0.03) e.angle += (Math.random() - 0.5) * 1.5;
                 }
 
                 // Lethal contact with player (deflectable by Torin, warded by Sanctuary)
@@ -544,26 +544,26 @@ export default function GameCanvas({
                     handleLethalContact(e);
                 }
             } else {
-                // --- HUNTER AI (Physical: Dangerous, relentless, but BLOCKED by trees & rocks!) ---
-                // Player walks at 4.0 and sprints at 5.8-7.0. Hunter chases at 3.35 * speedMult.
+                // --- HUNTER AI (Physical: Dangerous, relentless, high-octane chase blocked by trees & rocks!) ---
+                // Player walks at 5.8 and sprints at 8.8-11.0. Hunter chases furiously at 5.3 * speedMult!
                 // Walking leaves the hunter hot on your heels; sprinting or dodging around trees lets you escape!
-                const hunterChaseSpeed = 3.35 * speedMult;
-                const hunterPatrolSpeed = 1.1;
+                const hunterChaseSpeed = 5.3 * speedMult;
+                const hunterPatrolSpeed = 1.9;
 
                 if (e.state === 'patrol') {
                     const dx = Math.cos(e.angle);
                     const dy = Math.sin(e.angle);
                     // Move with full obstacle collision (cannot pass through trees or rocks)
                     const moved = phys.moveEntity(e, dx, dy, hunterPatrolSpeed);
-                    if (!moved || Math.random() < 0.015) {
+                    if (!moved || Math.random() < 0.02) {
                         e.angle = Math.random() * Math.PI * 2;
                     }
 
-                    if (distToPlayer < 290 && state.player.fuel > 0) {
+                    if (distToPlayer < 310 && state.player.fuel > 0) {
                         e.state = 'alert';
-                        e.timer = 16;
+                        e.timer = 10; // Hair-trigger reflex
                         e.angle = Math.atan2(state.player.y - e.y, state.player.x - e.x);
-                        spawnParticles(e.x, e.y, '#FF3333', 4);
+                        spawnParticles(e.x, e.y, '#FF3333', 5);
                         soundManager.triggerHunterAlert();
                     }
                 } else if (e.state === 'alert') {
@@ -580,13 +580,13 @@ export default function GameCanvas({
                     // Move with strict physical collision - BLOCKED by trees, rocks, and shrines
                     const moved = phys.moveEntity(e, dx, dy, hunterChaseSpeed);
 
-                    // If blocked head-on by an obstacle, slide/steer around it
+                    // If blocked head-on by an obstacle, slide/steer around it briskly
                     if (!moved) {
-                        const slideAngle1 = e.angle + 0.9;
-                        const slideAngle2 = e.angle - 0.9;
-                        const s1 = phys.moveEntity(e, Math.cos(slideAngle1), Math.sin(slideAngle1), hunterChaseSpeed * 0.85);
+                        const slideAngle1 = e.angle + 0.85;
+                        const slideAngle2 = e.angle - 0.85;
+                        const s1 = phys.moveEntity(e, Math.cos(slideAngle1), Math.sin(slideAngle1), hunterChaseSpeed * 0.92);
                         if (!s1) {
-                            phys.moveEntity(e, Math.cos(slideAngle2), Math.sin(slideAngle2), hunterChaseSpeed * 0.85);
+                            phys.moveEntity(e, Math.cos(slideAngle2), Math.sin(slideAngle2), hunterChaseSpeed * 0.92);
                         }
                     }
 
@@ -1252,19 +1252,6 @@ export default function GameCanvas({
 
         ctx.restore();
 
-        // Scarlet's Predator Radar Ping
-        if (perk.radarPing) {
-            const pingCycle = (state.time % 130) / 130; // 0 to 1
-            const pingRadius = pingCycle * 650;
-            const pingAlpha = (1 - pingCycle) * 0.25;
-            ctx.save();
-            ctx.strokeStyle = `rgba(255, 165, 0, ${pingAlpha})`;
-            ctx.lineWidth = 1.8;
-            ctx.beginPath();
-            ctx.arc(px, py, pingRadius, 0, Math.PI * 2);
-            ctx.stroke();
-            ctx.restore();
-        }
 
         // 5. Threat Indicators (Eyes in the Dark & Directional Chevrons)
         const eyeDetectRange = perk.eyeRange || 500;
