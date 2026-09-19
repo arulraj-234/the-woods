@@ -1,23 +1,63 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, fireEvent } from "@testing-library/react";
 import App from "./App";
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, beforeEach } from "vitest";
 import React from "react";
 
-describe("Treasure Hunt: The Shadowed Woods", () => {
+describe("The Woods", () => {
+  beforeEach(() => {
+    localStorage.clear();
+  });
+
   it("renders the hero title and landing screen elements", () => {
     render(<App />);
 
     // Verify hero title and subtitle
-    expect(screen.getByText("TREASURE HUNT")).toBeInTheDocument();
-    expect(screen.getByText("THE SHADOWED WOODS")).toBeInTheDocument();
+    expect(screen.getByText("THE WOODS")).toBeInTheDocument();
+    expect(screen.getByText("SURVIVE THE NIGHT")).toBeInTheDocument();
 
-    // Verify start button
-    expect(screen.getByText("ENTER THE WOODS")).toBeInTheDocument();
+    // Verify play button
+    expect(screen.getByRole("button", { name: "PLAY" })).toBeInTheDocument();
+  });
 
-    // Verify character roster is displayed
+  it("opens survivor registration for first-timers on clicking play", () => {
+    render(<App />);
+
+    const playBtn = screen.getByRole("button", { name: "PLAY" });
+    fireEvent.click(playBtn);
+
+    // Verify registration modal opens
+    expect(screen.getByText("SURVIVOR REGISTRATION")).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("Survivor")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "PROCEED TO SURVIVOR SELECTION" })).toBeInTheDocument();
+  });
+
+  it("proceeds to survivor selection after entering callsign", () => {
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: "PLAY" }));
+    const input = screen.getByPlaceholderText("Survivor");
+    fireEvent.change(input, { target: { value: "HunterX" } });
+    fireEvent.click(screen.getByRole("button", { name: "PROCEED TO SURVIVOR SELECTION" }));
+
+    // Verify survivor selection screen is shown
+    expect(screen.getByText("SURVIVOR SELECTION")).toBeInTheDocument();
     expect(screen.getByText("Vance")).toBeInTheDocument();
-    expect(screen.getByText("Lyra")).toBeInTheDocument();
-    expect(screen.getByText("Scarlet")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "CONFIRM SURVIVOR" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "ENTER THE WOODS" })).toBeInTheDocument();
+  });
+
+  it("navigates to base camp for onboarded returning players", () => {
+    localStorage.setItem("th_onboarded", "true");
+    localStorage.setItem("th_playername", "ShadowWalker");
+
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: "PLAY" }));
+
+    // Verify Base Camp screen is rendered
+    expect(screen.getByText("BASE CAMP")).toBeInTheDocument();
+    expect(screen.getByText("THE THRESHOLD OF DARKNESS")).toBeInTheDocument();
+    expect(screen.getByText("CALLSIGN: ShadowWalker")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "ENTER THE WOODS" })).toBeInTheDocument();
   });
 });
-

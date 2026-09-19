@@ -230,7 +230,19 @@ function DarkForestBackground() {
 }
 
 export default function App() {
-  const [started, setStarted] = useState(false);
+  // Navigation Screens: 'landing' | 'base_camp' | 'char_select' | 'game'
+  const [screen, setScreen] = useState("landing");
+  const [selectOrigin, setSelectOrigin] = useState("landing"); // 'landing' | 'base_camp'
+
+  // First-timer onboarding state
+  const [hasOnboarded, setHasOnboarded] = useState(() => {
+    return localStorage.getItem("th_onboarded") === "true";
+  });
+  const [showUsernameModal, setShowUsernameModal] = useState(false);
+  const [tempUsername, setTempUsername] = useState(() => {
+    return localStorage.getItem("th_playername") || "Survivor";
+  });
+
   const [gameOver, setGameOver] = useState(false);
   const [level, setLevel] = useState(1);
   const [score, setScore] = useState(0);
@@ -247,6 +259,10 @@ export default function App() {
     localStorage.getItem("th_selected_char") || "char_survivor"
   );
 
+  // Character selection carousel index
+  const initialIndex = CHARACTER_ROSTER.findIndex((c) => c.id === selectedCharacter);
+  const [charSelectIndex, setCharSelectIndex] = useState(initialIndex >= 0 ? initialIndex : 0);
+
   // Settings
   const [settings, setSettings] = useState(() => {
     try {
@@ -258,7 +274,7 @@ export default function App() {
 
   const [showSettings, setShowSettings] = useState(false);
   const [settingsTab, setSettingsTab] = useState("settings"); // 'settings' | 'guide'
-  const [assetsLoaded, setAssetsLoaded] = useState(false);
+  const [, setAssetsLoaded] = useState(false);
 
   // Pre-load assets on mount
   useEffect(() => {
@@ -270,16 +286,16 @@ export default function App() {
   // Sync settings changes to localStorage and audio
   useEffect(() => {
     localStorage.setItem("th_settings", JSON.stringify(settings));
-    if (settings.ambience && !started) {
+    if (settings.ambience && screen !== "game") {
       ambiencePlayer.setVolume(settings.volume);
     } else {
       ambiencePlayer.stop();
     }
-  }, [settings, started]);
+  }, [settings, screen]);
 
   // Title ambience autoplay on first user interaction
   useEffect(() => {
-    if (!started && settings.ambience) {
+    if (screen !== "game" && settings.ambience) {
       const handleFirstInteraction = () => {
         ambiencePlayer.start(settings.volume);
         window.removeEventListener("click", handleFirstInteraction);
@@ -293,7 +309,7 @@ export default function App() {
         window.removeEventListener("keydown", handleFirstInteraction);
       };
     }
-  }, [started, settings.ambience, settings.volume]);
+  }, [screen, settings.ambience, settings.volume]);
 
   const handleNameChange = (e) => {
     const val = e.target.value.slice(0, 16);
@@ -301,18 +317,65 @@ export default function App() {
     localStorage.setItem("th_playername", val);
   };
 
-  const handleSelectCharacter = (id) => {
-    setSelectedCharacter(id);
-    localStorage.setItem("th_selected_char", id);
-  };
-
   const updateSetting = (key, val) => {
     setSettings((prev) => ({ ...prev, [key]: val }));
   };
 
+  // Navigation handlers
+  const handleLandingPlay = () => {
+    if (!hasOnboarded) {
+      setShowUsernameModal(true);
+    } else {
+      setScreen("base_camp");
+    }
+  };
+
+  const handleOnboardingSubmit = (e) => {
+    if (e) e.preventDefault();
+    const trimmed = tempUsername.trim().slice(0, 16) || "Survivor";
+    setPlayerName(trimmed);
+    localStorage.setItem("th_playername", trimmed);
+    localStorage.setItem("th_onboarded", "true");
+    setHasOnboarded(true);
+    setShowUsernameModal(false);
+    // First timer proceeds directly to character selection
+    setSelectOrigin("landing");
+    setScreen("char_select");
+  };
+
+  const prevCharacter = () => {
+    setCharSelectIndex((prev) =>
+      prev > 0 ? prev - 1 : CHARACTER_ROSTER.length - 1
+    );
+  };
+
+  const nextCharacter = () => {
+    setCharSelectIndex((prev) =>
+      prev < CHARACTER_ROSTER.length - 1 ? prev + 1 : 0
+    );
+  };
+
+  const confirmCharacterSelection = (enterGameImmediately = false) => {
+    const chosen = CHARACTER_ROSTER[charSelectIndex];
+    setSelectedCharacter(chosen.id);
+    localStorage.setItem("th_selected_char", chosen.id);
+    if (enterGameImmediately) {
+      startGame();
+    } else {
+      setScreen(selectOrigin === "landing" ? "base_camp" : selectOrigin);
+    }
+  };
+
+  const goToCharacterSelect = (origin = "base_camp") => {
+    setSelectOrigin(origin);
+    const idx = CHARACTER_ROSTER.findIndex((c) => c.id === selectedCharacter);
+    setCharSelectIndex(idx >= 0 ? idx : 0);
+    setScreen("char_select");
+  };
+
   const startGame = () => {
     ambiencePlayer.stop();
-    setStarted(true);
+    setScreen("game");
     setGameOver(false);
     setScore(0);
     setLevel(1);
@@ -337,6 +400,10 @@ export default function App() {
 
   const currentCharacter =
     CHARACTER_ROSTER.find((c) => c.id === selectedCharacter) || CHARACTER_ROSTER[0];
+  const previewChar =
+    CHARACTER_ROSTER[charSelectIndex] || CHARACTER_ROSTER[0];
+  const previewThumb = assets.getCharacterThumb(previewChar.id);
+  const currentThumb = assets.getCharacterThumb(currentCharacter.id);
 
   return (
     <div
@@ -344,7 +411,7 @@ export default function App() {
         gameOver && settings.screenShake ? "shake-screen" : ""
       }`}
     >
-      {!started ? (
+      {screen !== "game" ? (
         <div className="home-screen-wrapper">
           <DarkForestBackground />
 
@@ -354,6 +421,11 @@ export default function App() {
               <span className="highscore-badge">
                 BEST RECORD: <strong>{highScore}</strong>
               </span>
+              {hasOnboarded && (
+                <span className="topbar-player-badge">
+                  CALLSIGN: <strong>{playerName}</strong>
+                </span>
+              )}
             </div>
             <div className="topbar-right">
               <button
@@ -378,72 +450,328 @@ export default function App() {
             </div>
           </header>
 
-          {/* Main Content Area */}
-          <main className="home-main-card">
-            {/* Hero Title Line */}
-            <div className="home-hero-title-wrap">
-              <h1 className="home-hero-title">TREASURE HUNT</h1>
-              <p className="home-hero-subtitle">THE SHADOWED WOODS</p>
-            </div>
+          {/* SCREEN 1: LANDING PAGE */}
+          {screen === "landing" && (
+            <main className="landing-main-card">
+              <div className="landing-hero-title-wrap">
+                <h1 className="home-hero-title">THE WOODS</h1>
+                <p className="home-hero-subtitle">SURVIVE THE NIGHT</p>
+              </div>
 
-            {/* Character Selection Roster */}
-            <div className="roster-section">
-              <div className="character-grid">
-                {CHARACTER_ROSTER.map((char) => {
-                  const isSelected = char.id === selectedCharacter;
-                  const thumb = assets.getCharacterThumb(char.id);
+              <div className="landing-lore-box">
+                <p className="landing-lore-quote">
+                  "An ancient darkness grips the cursed grove. Choose your survivor, nurse your dying flame, and consecrate the shrines before the night stalkers claim your soul."
+                </p>
+              </div>
 
-                  return (
-                    <div
-                      key={char.id}
-                      className={`char-card ${isSelected ? "selected" : ""}`}
-                      onClick={() => handleSelectCharacter(char.id)}
+              <div className="landing-action-wrap">
+                <button
+                  className="landing-play-btn pulse-btn"
+                  onClick={handleLandingPlay}
+                >
+                  PLAY
+                </button>
+              </div>
+
+              <div className="landing-footer-hint">
+                PC EDITION &bull; HEADPHONES RECOMMENDED
+              </div>
+            </main>
+          )}
+
+          {/* SCREEN 2: GAME-STYLE CHARACTER SELECTION */}
+          {screen === "char_select" && (
+            <main className="char-select-main-card">
+              <div className="char-select-header-bar">
+                <h2 className="char-select-screen-title">SURVIVOR SELECTION</h2>
+                <div className="char-select-counter">
+                  SURVIVOR <strong>{charSelectIndex + 1}</strong> / {CHARACTER_ROSTER.length}
+                </div>
+              </div>
+
+              <div className="char-select-layout">
+                {/* Left Column: Character Stage */}
+                <div className="char-stage-column">
+                  <div className="char-stage-frame">
+                    <button
+                      className="stage-arrow-btn stage-arrow-left"
+                      onClick={prevCharacter}
+                      aria-label="Previous Survivor"
+                      title="Previous Survivor"
                     >
-                      <div className="char-portrait-frame">
-                        {thumb ? (
-                          <img
-                            src={thumb}
-                            alt={char.name}
-                            className="char-portrait-img"
-                          />
-                        ) : (
-                          <div className="char-portrait-placeholder">
-                            <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
-                              <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z" />
-                            </svg>
-                          </div>
-                        )}
-                        {isSelected && <div className="selected-glow-ring"></div>}
-                      </div>
+                      &lt;
+                    </button>
 
-                      <div className="char-info">
-                        <div className="char-name-title">
-                          <span className="char-name">{char.name}</span>
-                          <span className="char-title">{char.title}</span>
-                        </div>
-                        <div className="char-perk-box">
-                          <span className="perk-label">
-                            {char.perkTitle}
-                          </span>
-                          <span className="perk-text">{char.perkDesc}</span>
-                        </div>
+                    {previewThumb ? (
+                      <img
+                        src={previewThumb}
+                        alt={previewChar.name}
+                        className="char-stage-sprite"
+                      />
+                    ) : (
+                      <div className="char-portrait-placeholder">
+                        <svg width="48" height="48" viewBox="0 0 24 24" fill="currentColor">
+                          <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z" />
+                        </svg>
                       </div>
+                    )}
+
+                    <div className="char-stage-pedestal" />
+
+                    <button
+                      className="stage-arrow-btn stage-arrow-right"
+                      onClick={nextCharacter}
+                      aria-label="Next Survivor"
+                      title="Next Survivor"
+                    >
+                      &gt;
+                    </button>
+                  </div>
+
+                  {/* Thumbnail Selector Strip */}
+                  <div className="char-thumbs-strip">
+                    {CHARACTER_ROSTER.map((char, idx) => {
+                      const isCurrent = idx === charSelectIndex;
+                      const thumb = assets.getCharacterThumb(char.id);
+                      return (
+                        <button
+                          key={char.id}
+                          className={`char-thumb-btn ${isCurrent ? "active" : ""}`}
+                          onClick={() => setCharSelectIndex(idx)}
+                          title={`${char.name} (${char.title})`}
+                          aria-label={char.name}
+                        >
+                          {thumb ? (
+                            <img
+                              src={thumb}
+                              alt={char.name}
+                              className="char-thumb-img"
+                            />
+                          ) : (
+                            <span>{char.name[0]}</span>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Right Column: Character Dossier */}
+                <div className="char-dossier-column">
+                  <div className="char-dossier-header">
+                    <h3 className="char-dossier-name">{previewChar.name}</h3>
+                    <div className="char-dossier-title">{previewChar.title}</div>
+                    <p className="char-dossier-tagline">"{previewChar.tagline}"</p>
+                  </div>
+
+                  <div className="char-dossier-perk-card">
+                    <div className="dossier-perk-title">{previewChar.perkTitle}</div>
+                    <p className="dossier-perk-desc">{previewChar.perkDesc}</p>
+                  </div>
+
+                  <div className="char-dossier-stats">
+                    <div className="stat-pill">
+                      <span className="stat-label">Movement Speed</span>
+                      <span className="stat-val">
+                        {Math.round(previewChar.perk.speedMult * 100)}%
+                      </span>
                     </div>
-                  );
-                })}
+                    <div className="stat-pill">
+                      <span className="stat-label">Sprint Burst</span>
+                      <span className="stat-val">
+                        +{Math.round((previewChar.perk.sprintMult - 1) * 100)}%
+                      </span>
+                    </div>
+                    <div className="stat-pill">
+                      <span className="stat-label">Fuel Burn Rate</span>
+                      <span className="stat-val">
+                        {Math.round(previewChar.perk.fuelBurn * 100)}%
+                      </span>
+                    </div>
+                    <div className="stat-pill">
+                      <span className="stat-label">Sanctuary Ward</span>
+                      <span className="stat-val">
+                        +{Math.round((previewChar.perk.wardRadius - 1) * 100)}%
+                      </span>
+                    </div>
+                    <div className="stat-pill">
+                      <span className="stat-label">Threat Sense</span>
+                      <span className="stat-val">{previewChar.perk.threatRange} px</span>
+                    </div>
+                    <div className="stat-pill">
+                      <span className="stat-label">Torch Bonus</span>
+                      <span className="stat-val">+{previewChar.perk.torchBonus} pts</span>
+                    </div>
+                  </div>
+
+                  <div className="char-dossier-actions">
+                    <button
+                      className="start-btn confirm-char-btn"
+                      onClick={() => confirmCharacterSelection(false)}
+                    >
+                      CONFIRM SURVIVOR
+                    </button>
+                    <button
+                      className="start-btn pulse-btn"
+                      onClick={() => confirmCharacterSelection(true)}
+                    >
+                      ENTER THE WOODS
+                    </button>
+                  </div>
+
+                  <div style={{ textAlign: "center", marginTop: 4 }}>
+                    <button
+                      className="topbar-btn"
+                      onClick={() =>
+                        setScreen(selectOrigin === "landing" ? "landing" : "base_camp")
+                      }
+                    >
+                      CANCEL / BACK
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </main>
+          )}
+
+          {/* SCREEN 3: BASE CAMP HUB */}
+          {screen === "base_camp" && (
+            <main className="base-camp-main-card">
+              <div className="base-camp-layout">
+                {/* Left Column: Active Survivor Card */}
+                <div
+                  className="camp-survivor-card"
+                  onClick={() => goToCharacterSelect("base_camp")}
+                  title="Click to change your survivor"
+                >
+                  <div className="camp-survivor-tag">SURVIVOR ON DUTY</div>
+
+                  <div className="camp-portrait-frame">
+                    {currentThumb ? (
+                      <img
+                        src={currentThumb}
+                        alt={currentCharacter.name}
+                        className="camp-portrait-img"
+                      />
+                    ) : (
+                      <div className="char-portrait-placeholder">
+                        <svg width="40" height="40" viewBox="0 0 24 24" fill="currentColor">
+                          <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z" />
+                        </svg>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="camp-callsign">CALLSIGN: {playerName}</div>
+                  <h3 className="camp-char-name">{currentCharacter.name}</h3>
+                  <div className="camp-char-title">{currentCharacter.title}</div>
+
+                  <div className="camp-perk-summary">
+                    <strong>{currentCharacter.perkTitle}</strong>: {currentCharacter.perkDesc}
+                  </div>
+
+                  <button
+                    className="camp-change-char-btn"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      goToCharacterSelect("base_camp");
+                    }}
+                  >
+                    CHANGE SURVIVOR
+                  </button>
+                </div>
+
+                {/* Right Column: Base Camp Options Menu */}
+                <div className="camp-menu-card">
+                  <div className="camp-menu-header">
+                    <h2 className="camp-menu-title">BASE CAMP</h2>
+                    <p className="camp-menu-subtitle">THE THRESHOLD OF DARKNESS</p>
+                  </div>
+
+                  <div className="camp-menu-stack">
+                    <button
+                      className="camp-menu-btn primary-btn pulse-btn"
+                      onClick={startGame}
+                    >
+                      ENTER THE WOODS
+                    </button>
+                    <button
+                      className="camp-menu-btn"
+                      onClick={() => goToCharacterSelect("base_camp")}
+                    >
+                      CHANGE SURVIVOR
+                    </button>
+                    <button
+                      className="camp-menu-btn"
+                      onClick={() => {
+                        setSettingsTab("guide");
+                        setShowSettings(true);
+                      }}
+                    >
+                      SURVIVAL FIELD GUIDE
+                    </button>
+                    <button
+                      className="camp-menu-btn"
+                      onClick={() => {
+                        setSettingsTab("settings");
+                        setShowSettings(true);
+                      }}
+                    >
+                      SETTINGS
+                    </button>
+                    <button
+                      className="camp-menu-btn secondary-ghost"
+                      onClick={() => setScreen("landing")}
+                    >
+                      RETURN TO TITLE
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </main>
+          )}
+
+          {/* First-Timer Username Onboarding Modal */}
+          {showUsernameModal && (
+            <div
+              className="modal-overlay"
+              onClick={() => setShowUsernameModal(false)}
+            >
+              <div
+                className="onboarding-modal"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="onboarding-header">
+                  <h2 className="onboarding-title">SURVIVOR REGISTRATION</h2>
+                  <p className="onboarding-subtitle">
+                    Declare your callsign before venturing into the cursed woods.
+                  </p>
+                </div>
+
+                <form onSubmit={handleOnboardingSubmit} className="onboarding-form">
+                  <div className="onboarding-input-wrap">
+                    <label className="onboarding-label" htmlFor="callsign-input">
+                      Survivor Callsign
+                    </label>
+                    <input
+                      id="callsign-input"
+                      type="text"
+                      className="styled-name-input onboarding-input"
+                      value={tempUsername}
+                      onChange={(e) => setTempUsername(e.target.value.slice(0, 16))}
+                      maxLength={16}
+                      placeholder="Survivor"
+                      autoFocus
+                    />
+                  </div>
+
+                  <button type="submit" className="start-btn onboarding-submit-btn">
+                    PROCEED TO SURVIVOR SELECTION
+                  </button>
+                </form>
               </div>
             </div>
-
-            {/* Action Bar */}
-            <div className="action-bar">
-              <button
-                className="start-btn hero-start-btn pulse-btn"
-                onClick={startGame}
-              >
-                ENTER THE WOODS
-              </button>
-            </div>
-          </main>
+          )}
 
           {/* Settings & Guide Modal */}
           {showSettings && (
@@ -576,7 +904,7 @@ export default function App() {
                         <div className="setting-label-block">
                           <span className="setting-title">Forest Wind Ambience</span>
                           <span className="setting-desc">
-                            Procedural cold wind howling on the home menu.
+                            Procedural cold wind howling on the menu screens.
                           </span>
                         </div>
                         <button
@@ -710,7 +1038,7 @@ export default function App() {
                 <button
                   className="start-btn return-home-btn"
                   onClick={() => {
-                    setStarted(false);
+                    setScreen("base_camp");
                     setGameOver(false);
                   }}
                 >
