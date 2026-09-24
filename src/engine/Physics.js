@@ -92,7 +92,24 @@ export class Physics {
                         // Project velocity onto obstacle tangent
                         const slideX = vx - dot * nx;
                         const slideY = vy - dot * ny;
+                        const slideLen = Math.hypot(slideX, slideY);
 
+                        if (slideLen > 0.001) {
+                            // 1st priority: Glide at full speed along circular perimeter tangent
+                            const fullSlideX = (slideX / slideLen) * speed;
+                            const fullSlideY = (slideY / slideLen) * speed;
+                            const testFullX = entity.x + fullSlideX;
+                            const testFullY = entity.y + fullSlideY;
+
+                            if (!this.checkCollisionCircle(testFullX, testFullY, pr)) {
+                                entity.x = testFullX;
+                                entity.y = testFullY;
+                                moved = true;
+                                break;
+                            }
+                        }
+
+                        // 2nd priority: Fallback to direct tangent projection if full slide blocked
                         const testX = entity.x + slideX;
                         const testY = entity.y + slideY;
 

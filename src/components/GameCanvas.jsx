@@ -120,8 +120,15 @@ export default function GameCanvas({
         const canvas = canvasRef.current;
         const ctx = canvas.getContext('2d');
 
-        const loop = () => {
-            update();
+        let lastTime = performance.now();
+        const loop = (currentTime) => {
+            const now = currentTime || performance.now();
+            const elapsed = now - lastTime;
+            lastTime = now;
+            // Target 60 FPS (16.667ms per frame). Clamp between 0.5 and 2.0 to prevent hitching on tab switch
+            const dt = Math.min(2.0, Math.max(0.5, elapsed / 16.667));
+
+            update(dt);
             draw(ctx);
             frameId.current = requestAnimationFrame(loop);
         };
@@ -174,14 +181,14 @@ export default function GameCanvas({
         }
     };
 
-    const update = () => {
+    const update = (dt = 1.0) => {
         const state = gameState.current;
         if (state.player.dead) return;
 
         const input = inputRef.current;
         const phys = physicsRef.current;
         const worldGen = worldGenRef.current;
-        state.time++;
+        state.time += dt;
 
         const width = window.innerWidth;
         const height = window.innerHeight;
@@ -222,7 +229,7 @@ export default function GameCanvas({
         state.player.isSprinting = isSprinting;
 
         const baseSpeed = 5.2 * (perk.speedMult || 1.0);
-        const playerSpeed = isSprinting ? baseSpeed * (perk.sprintMult || 1.55) : baseSpeed;
+        const playerSpeed = (isSprinting ? baseSpeed * (perk.sprintMult || 1.55) : baseSpeed) * dt;
 
         if (isMoving) {
             state.player.angle = Math.atan2(dy, dx);
@@ -247,9 +254,9 @@ export default function GameCanvas({
 
         // 4. Torch Fuel & Embers (Sprint burns extra fuel, modulated by Lyra's / character perk)
         const sprintBurnMult = (perk.sprintBurnMult || 2.0);
-        const fuelDecay = isSprinting
+        const fuelDecay = (isSprinting
             ? FUEL_DECAY * sprintBurnMult * (perk.fuelBurn || 1.0)
-            : FUEL_DECAY * (perk.fuelBurn || 1.0);
+            : FUEL_DECAY * (perk.fuelBurn || 1.0)) * dt;
         state.player.fuel -= fuelDecay;
 
         // Rowan's Vanguard perk: Fuel steadily regenerates while inside consecrated sanctuary!
@@ -512,7 +519,7 @@ export default function GameCanvas({
                     const obstacleDrag = insideObstacle ? 0.90 : 1.0;
 
                     // Ghost Chase Speed: explicitly tuned per level in LEVEL_CONFIGS
-                    const ghostSpeed = (config.ghostSpeed || 5.4) * obstacleDrag;
+                    const ghostSpeed = (config.ghostSpeed || 5.4) * obstacleDrag * dt;
                     e.x += Math.cos(e.angle) * ghostSpeed;
                     e.y += Math.sin(e.angle) * ghostSpeed;
 
@@ -533,8 +540,8 @@ export default function GameCanvas({
                 } else {
                     e.state = 'patrol';
                     // Drift briskly in current angle
-                    e.x += Math.cos(e.angle) * 1.8;
-                    e.y += Math.sin(e.angle) * 1.8;
+                    e.x += Math.cos(e.angle) * 1.8 * dt;
+                    e.y += Math.sin(e.angle) * 1.8 * dt;
                     if (Math.random() < 0.035) e.angle += (Math.random() - 0.5) * 1.5;
                 }
 
@@ -544,8 +551,8 @@ export default function GameCanvas({
                 }
             } else {
                 // --- HUNTER AI (Physical Predator: Fast, relentless, intelligent whisker navigation around obstacles) ---
-                const hunterChaseSpeed = config.hunterSpeed || 5.7;
-                const hunterPatrolSpeed = 2.4;
+                const hunterChaseSpeed = (config.hunterSpeed || 5.7) * dt;
+                const hunterPatrolSpeed = 2.4 * dt;
 
                 if (e.state === 'patrol') {
                     const dx = Math.cos(e.angle);
@@ -566,7 +573,7 @@ export default function GameCanvas({
                     }
                 } else if (e.state === 'alert') {
                     e.angle = Math.atan2(state.player.y - e.y, state.player.x - e.x);
-                    e.timer--;
+                    e.timer -= dt;
                     if (e.timer <= 0) e.state = 'chase';
                 } else if (e.state === 'chase') {
                     isChased = true;
@@ -1384,7 +1391,7 @@ export default function GameCanvas({
         const barW = 200;
         const barH = 10;
         const barX = width / 2 - barW / 2;
-        const barY = height - 40;
+        const barY = height - 52;
 
         ctx.fillStyle = 'rgba(18, 14, 18, 0.88)';
         ctx.fillRect(barX - 2, barY - 2, barW + 4, barH + 4);
@@ -1400,16 +1407,31 @@ export default function GameCanvas({
         ctx.textAlign = 'center';
         ctx.fillText(`TORCH FUEL  |  LVL ${state.currentLevel}`, width / 2, barY - 10);
 
-        // Sprint Status Indicator
+        // Sprint & Low Fuel Feedback Indicator
+        const input = inputRef.current;
+        const wantsToSprint = input && input.isSprinting();
+
+        ctx.save();
+        ctx.font = 'bold 11px monospace';
+        ctx.textAlign = 'center';
+
         if (state.player.isSprinting) {
-            ctx.save();
             ctx.fillStyle = '#fcb42c';
-            ctx.font = 'bold 11px monospace';
             ctx.shadowColor = '#fcb42c';
             ctx.shadowBlur = 6;
-            ctx.fillText(`SPRINTING`, width / 2, barY + 24);
-            ctx.restore();
+            ctx.fillText(`[SPRINT BURST ACTIVE]`, width / 2, barY + 22);
+        } else if (wantsToSprint && state.player.fuel <= 30) {
+            // Flash red warning when player holds sprint key with insufficient fuel
+            const flash = Math.sin(state.time * 0.25) > 0;
+            ctx.fillStyle = flash ? '#ff5252' : '#ff8a80';
+            ctx.shadowColor = '#ff5252';
+            ctx.shadowBlur = 8;
+            ctx.fillText(`LOW FUEL - CANNOT SPRINT`, width / 2, barY + 22);
+        } else if (state.player.moving) {
+            ctx.fillStyle = 'rgba(245, 235, 230, 0.45)';
+            ctx.fillText(`[HOLD SHIFT TO SPRINT]`, width / 2, barY + 22);
         }
+        ctx.restore();
 
         // Torin's Iron Resolve HUD Status
         if (perk.ironStun) {
@@ -1425,10 +1447,10 @@ export default function GameCanvas({
                 ctx.fillStyle = '#FFD700';
                 ctx.shadowColor = '#FFD700';
                 ctx.shadowBlur = 6;
-                ctx.fillText(`IRON RESOLVE: [READY]`, width / 2, barY + 38);
+                ctx.fillText(`IRON RESOLVE: [READY]`, width / 2, barY + 36);
             } else {
                 ctx.fillStyle = 'rgba(180, 180, 180, 0.7)';
-                ctx.fillText(`IRON RESOLVE: [RECHARGING ${remainingSec}s]`, width / 2, barY + 38);
+                ctx.fillText(`IRON RESOLVE: [RECHARGING ${remainingSec}s]`, width / 2, barY + 36);
             }
             ctx.restore();
         }
