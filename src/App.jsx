@@ -849,9 +849,11 @@ export default function App() {
                       <div className="guide-card">
                         <h4>LEVEL PROGRESSION</h4>
                         <p>
-                          Surviving and picking up torches earns Score. Reaching 35,
-                          80, 140, and 220 points advances your Level, unlocking new
-                          zones, fuel bonuses, and escalating night stalkers.
+                          Surviving and gathering torches advances your Level across
+                          10 escalating tiers. Early levels (1–3) have slow, forgiving
+                          patrols to learn the woods and shrines. Higher levels (4+)
+                          unleash predators faster than walking speed—stay active,
+                          sprint tactically, and take refuge in sacred sanctuaries!
                         </p>
                       </div>
                     </div>

@@ -9,12 +9,17 @@ import { WorldGenerator } from '../engine/WorldGenerator';
 const MAX_FUEL = 1000;
 const FUEL_DECAY = 0.52;
 
-const LEVEL_CONFIGS = [
-    { level: 1, minScore: 0, title: 'THE WHISPERING WOODS', hunters: 5, ghosts: 2, hunterSpeed: 5.7, ghostSpeed: 5.4 },
-    { level: 2, minScore: 40, title: 'THE CRIMSON THICKET', hunters: 7, ghosts: 3, hunterSpeed: 6.1, ghostSpeed: 5.8 },
-    { level: 3, minScore: 95, title: 'THE HAUNTED GROVE', hunters: 9, ghosts: 4, hunterSpeed: 6.5, ghostSpeed: 6.2 },
-    { level: 4, minScore: 160, title: 'THE ANCIENT RUINS', hunters: 12, ghosts: 6, hunterSpeed: 6.9, ghostSpeed: 6.6 },
-    { level: 5, minScore: 240, title: 'THE ENDLESS NIGHTMARE', hunters: 15, ghosts: 8, hunterSpeed: 7.3, ghostSpeed: 7.0 }
+export const LEVEL_CONFIGS = [
+    { level: 1, minScore: 0, title: 'THE WHISPERING OUTSKIRTS', hunters: 2, ghosts: 0, hunterSpeed: 3.8, ghostSpeed: 3.4, alertRange: 220, alertReaction: 18, desc: 'Quiet outskirts. Learn to gather torches and find sacred shrines.' },
+    { level: 2, minScore: 25, title: 'THE TWILIGHT THICKET', hunters: 3, ghosts: 1, hunterSpeed: 4.4, ghostSpeed: 4.0, alertRange: 260, alertReaction: 16, desc: 'The shadows lengthen. Lone phantoms drift between the pines.' },
+    { level: 3, minScore: 60, title: 'THE SHADOWED WOODS', hunters: 4, ghosts: 2, hunterSpeed: 5.0, ghostSpeed: 4.6, alertRange: 300, alertReaction: 14, desc: 'Hunters match your walking pace. Use sprint bursts to break line of sight.' },
+    { level: 4, minScore: 105, title: 'THE CRIMSON GROVE', hunters: 6, ghosts: 2, hunterSpeed: 5.6, ghostSpeed: 5.1, alertRange: 340, alertReaction: 12, desc: 'Predators are now faster than walking! Stay active or be claimed.' },
+    { level: 5, minScore: 160, title: 'THE HOWLING DEEP', hunters: 8, ghosts: 3, hunterSpeed: 6.0, ghostSpeed: 5.6, alertRange: 380, alertReaction: 10, desc: 'The pack grows aggressive. Seek sanctuary circles to catch your breath.' },
+    { level: 6, minScore: 230, title: 'THE HAUNTED RUINS', hunters: 10, ghosts: 4, hunterSpeed: 6.4, ghostSpeed: 6.0, alertRange: 410, alertReaction: 9, desc: 'Ancient stone altars crumble under spectral presence.' },
+    { level: 7, minScore: 315, title: 'THE SPECTRAL LABYRINTH', hunters: 12, ghosts: 5, hunterSpeed: 6.8, ghostSpeed: 6.4, alertRange: 430, alertReaction: 8, desc: 'Phantoms glide relentlessly through dense groves.' },
+    { level: 8, minScore: 410, title: 'THE ABYSSAL THICKET', hunters: 14, ghosts: 6, hunterSpeed: 7.1, ghostSpeed: 6.7, alertRange: 450, alertReaction: 7, desc: 'Only master survivors with calibrated perks can endure.' },
+    { level: 9, minScore: 520, title: 'THE CURSED NECROPOLIS', hunters: 16, ghosts: 7, hunterSpeed: 7.4, ghostSpeed: 7.0, alertRange: 470, alertReaction: 6, desc: 'Furious red eyes emerge from every direction.' },
+    { level: 10, minScore: 650, title: 'THE ENDLESS NIGHTMARE', hunters: 18, ghosts: 8, hunterSpeed: 7.7, ghostSpeed: 7.3, alertRange: 490, alertReaction: 5, desc: 'The ultimate gauntlet. Survive the ancient curse!' }
 ];
 
 export default function GameCanvas({
@@ -70,8 +75,9 @@ export default function GameCanvas({
         time: 0,
         score: score,
         currentLevel: level,
-        levelBannerTimer: 0,
-        levelBannerText: '',
+        levelBannerTimer: 180,
+        levelBannerText: `LEVEL ${level}: ${LEVEL_CONFIGS[Math.min(level - 1, LEVEL_CONFIGS.length - 1)].title}`,
+        levelBannerDesc: LEVEL_CONFIGS[Math.min(level - 1, LEVEL_CONFIGS.length - 1)].desc,
         portalFrame: 0,
         lastDeflectTime: -9999, // Cooldown timer for Torin's Iron Resolve
         inSanctuary: false
@@ -323,6 +329,7 @@ export default function GameCanvas({
             state.currentLevel = calculatedLevel;
             const cfg = LEVEL_CONFIGS[calculatedLevel - 1];
             state.levelBannerText = `LEVEL ${calculatedLevel}: ${cfg.title}`;
+            state.levelBannerDesc = cfg.desc;
             state.levelBannerTimer = 180; // 3 seconds banner
             state.player.fuel = Math.min(MAX_FUEL, state.player.fuel + 160); // Balanced level-up bonus fuel
             playSound('levelup');
@@ -502,8 +509,9 @@ export default function GameCanvas({
                 // --- GHOST / PHANTOM AI (Phases through trees/rocks, eerie spectral stalker) ---
                 e.alpha = 0.35 + Math.sin(state.time * 0.08 + e.id) * 0.3;
 
-                // Lyra's Ghost Stealth: phantoms only detect her at 180px vs 380px!
-                const ghostDetectRange = perk.ghostStealth ? 180 : 380;
+                // Lyra's Ghost Stealth: phantoms only detect her at 50% range!
+                const baseGhostDetect = (config.alertRange || 360) * 0.95;
+                const ghostDetectRange = perk.ghostStealth ? baseGhostDetect * 0.5 : baseGhostDetect;
 
                 if (distToPlayer < ghostDetectRange) {
                     if (e.state !== 'chase') {
@@ -552,7 +560,7 @@ export default function GameCanvas({
             } else {
                 // --- HUNTER AI (Physical Predator: Fast, relentless, intelligent whisker navigation around obstacles) ---
                 const hunterChaseSpeed = (config.hunterSpeed || 5.7) * dt;
-                const hunterPatrolSpeed = 2.4 * dt;
+                const hunterPatrolSpeed = Math.min(2.4, (config.hunterSpeed || 5.7) * 0.45) * dt;
 
                 if (e.state === 'patrol') {
                     const dx = Math.cos(e.angle);
@@ -562,11 +570,12 @@ export default function GameCanvas({
                         e.angle = Math.random() * Math.PI * 2;
                     }
 
-                    // Sprinting footsteps create noise that alerts hunters from further away (480px vs 380px)
-                    const alertRange = state.player.isSprinting ? 480 : 380;
+                    // Sprinting footsteps create noise that alerts hunters from further away
+                    const baseAlert = config.alertRange || 380;
+                    const alertRange = state.player.isSprinting ? baseAlert * 1.25 : baseAlert;
                     if (distToPlayer < alertRange && state.player.fuel > 0) {
                         e.state = 'alert';
-                        e.timer = 8; // Instant predatory reflex
+                        e.timer = config.alertReaction || 8; // Gentle reaction delay in early levels, instant in late levels
                         e.angle = Math.atan2(state.player.y - e.y, state.player.x - e.x);
                         spawnParticles(e.x, e.y, '#FF3333', 6);
                         soundManager.triggerHunterAlert();
@@ -1375,15 +1384,23 @@ export default function GameCanvas({
         if (state.levelBannerTimer > 0) {
             const bannerAlpha = Math.min(1, state.levelBannerTimer / 30);
             ctx.save();
-            ctx.fillStyle = `rgba(0, 0, 0, ${bannerAlpha * 0.75})`;
-            ctx.fillRect(0, height * 0.22, width, 50);
+            ctx.fillStyle = `rgba(0, 0, 0, ${bannerAlpha * 0.82})`;
+            ctx.fillRect(0, height * 0.18, width, 66);
 
             ctx.font = 'bold 22px "Courier Prime", monospace';
             ctx.textAlign = 'center';
             ctx.fillStyle = `rgba(253, 203, 110, ${bannerAlpha})`;
-            ctx.shadowColor = 'rgba(253, 203, 110, 0.8)';
+            ctx.shadowColor = 'rgba(253, 203, 110, 0.85)';
             ctx.shadowBlur = 10;
-            ctx.fillText(`${state.levelBannerText}`, width / 2, height * 0.22 + 32);
+            ctx.fillText(`${state.levelBannerText}`, width / 2, height * 0.18 + 28);
+
+            if (state.levelBannerDesc) {
+                ctx.font = '13px monospace';
+                ctx.fillStyle = `rgba(240, 230, 210, ${bannerAlpha * 0.92})`;
+                ctx.shadowColor = 'rgba(0, 0, 0, 0.8)';
+                ctx.shadowBlur = 4;
+                ctx.fillText(`${state.levelBannerDesc}`, width / 2, height * 0.18 + 50);
+            }
             ctx.restore();
         }
 
