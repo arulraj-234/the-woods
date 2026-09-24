@@ -10,11 +10,11 @@ const MAX_FUEL = 1000;
 const FUEL_DECAY = 0.52;
 
 const LEVEL_CONFIGS = [
-    { level: 1, minScore: 0, title: 'THE WHISPERING WOODS', hunters: 5, ghosts: 2, speedMult: 1.0 },
-    { level: 2, minScore: 40, title: 'THE CRIMSON THICKET', hunters: 7, ghosts: 3, speedMult: 1.12 },
-    { level: 3, minScore: 95, title: 'THE HAUNTED GROVE', hunters: 9, ghosts: 4, speedMult: 1.24 },
-    { level: 4, minScore: 160, title: 'THE ANCIENT RUINS', hunters: 12, ghosts: 6, speedMult: 1.36 },
-    { level: 5, minScore: 240, title: 'THE ENDLESS NIGHTMARE', hunters: 15, ghosts: 8, speedMult: 1.50 }
+    { level: 1, minScore: 0, title: 'THE WHISPERING WOODS', hunters: 5, ghosts: 2, hunterSpeed: 5.7, ghostSpeed: 5.4 },
+    { level: 2, minScore: 40, title: 'THE CRIMSON THICKET', hunters: 7, ghosts: 3, hunterSpeed: 6.1, ghostSpeed: 5.8 },
+    { level: 3, minScore: 95, title: 'THE HAUNTED GROVE', hunters: 9, ghosts: 4, hunterSpeed: 6.5, ghostSpeed: 6.2 },
+    { level: 4, minScore: 160, title: 'THE ANCIENT RUINS', hunters: 12, ghosts: 6, hunterSpeed: 6.9, ghostSpeed: 6.6 },
+    { level: 5, minScore: 240, title: 'THE ENDLESS NIGHTMARE', hunters: 15, ghosts: 8, hunterSpeed: 7.3, ghostSpeed: 7.0 }
 ];
 
 export default function GameCanvas({
@@ -221,8 +221,8 @@ export default function GameCanvas({
         const isSprinting = isMoving && input.isSprinting() && state.player.fuel > 30;
         state.player.isSprinting = isSprinting;
 
-        const baseSpeed = 5.4 * (perk.speedMult || 1.0);
-        const playerSpeed = isSprinting ? baseSpeed * (perk.sprintMult || 1.58) : baseSpeed;
+        const baseSpeed = 5.2 * (perk.speedMult || 1.0);
+        const playerSpeed = isSprinting ? baseSpeed * (perk.sprintMult || 1.55) : baseSpeed;
 
         if (isMoving) {
             state.player.angle = Math.atan2(dy, dx);
@@ -511,8 +511,8 @@ export default function GameCanvas({
                     const insideObstacle = phys.checkCollisionCircle(e.x, e.y, 12);
                     const obstacleDrag = insideObstacle ? 0.90 : 1.0;
 
-                    // Ghost Chase Speed: 5.8 base at Lvl 1 (faster than player walking 5.4, requiring sprint or ward!)
-                    const ghostSpeed = (5.8 + (state.currentLevel - 1) * 0.45) * speedMult * obstacleDrag;
+                    // Ghost Chase Speed: explicitly tuned per level in LEVEL_CONFIGS
+                    const ghostSpeed = (config.ghostSpeed || 5.4) * obstacleDrag;
                     e.x += Math.cos(e.angle) * ghostSpeed;
                     e.y += Math.sin(e.angle) * ghostSpeed;
 
@@ -544,8 +544,7 @@ export default function GameCanvas({
                 }
             } else {
                 // --- HUNTER AI (Physical Predator: Fast, relentless, intelligent whisker navigation around obstacles) ---
-                // Level 1: 6.2 chase speed (Player base walk is 5.4). Player MUST sprint or break line-of-sight!
-                const hunterChaseSpeed = (6.2 + (state.currentLevel - 1) * 0.55) * speedMult;
+                const hunterChaseSpeed = config.hunterSpeed || 5.7;
                 const hunterPatrolSpeed = 2.4;
 
                 if (e.state === 'patrol') {

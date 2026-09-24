@@ -42,16 +42,27 @@ export class Physics {
 
         let moved = false;
 
-        // 2. Separate axis sliding
+        // 2. Separate axis sliding (maintain full movement speed along the unobstructed axis)
         const canMoveX = !this.checkCollisionCircle(targetX, entity.y, pr);
         const canMoveY = !this.checkCollisionCircle(entity.x, targetY, pr);
 
-        if (canMoveX && Math.abs(dx) > 0.001) {
-            entity.x = targetX;
+        if (canMoveX && !canMoveY && Math.abs(dx) > 0.001) {
+            // Y blocked: slide horizontally at full speed
+            const slideX = entity.x + Math.sign(dx) * speed;
+            if (!this.checkCollisionCircle(slideX, entity.y, pr)) {
+                entity.x = slideX;
+            } else {
+                entity.x = targetX;
+            }
             moved = true;
-        }
-        if (canMoveY && Math.abs(dy) > 0.001) {
-            entity.y = targetY;
+        } else if (canMoveY && !canMoveX && Math.abs(dy) > 0.001) {
+            // X blocked: slide vertically at full speed
+            const slideY = entity.y + Math.sign(dy) * speed;
+            if (!this.checkCollisionCircle(entity.x, slideY, pr)) {
+                entity.y = slideY;
+            } else {
+                entity.y = targetY;
+            }
             moved = true;
         }
 
