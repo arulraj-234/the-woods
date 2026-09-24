@@ -80,7 +80,9 @@ export default function GameCanvas({
         levelBannerDesc: LEVEL_CONFIGS[Math.min(level - 1, LEVEL_CONFIGS.length - 1)].desc,
         portalFrame: 0,
         lastDeflectTime: -9999, // Cooldown timer for Torin's Iron Resolve
-        inSanctuary: false
+        inSanctuary: false,
+        lastHunterAlertAudio: -9999,
+        lastEnemyLeashTime: 0
     });
 
     // Sync settings to soundManager
@@ -217,6 +219,7 @@ export default function GameCanvas({
             });
         });
         phys.setObstacles(activeObstacles);
+        state.visibleObjects = visibleObjects;
 
         // 3. Player Movement & Sprint
         const { dx, dy } = input.getAxis();
@@ -470,16 +473,40 @@ export default function GameCanvas({
             if (callbacksRef.current.onGameOver) callbacksRef.current.onGameOver();
         };
 
+        // 1. Hunter Mutual Separation: Prevent predators from stacking into a concentrated death clump
+        for (let i = 0; i < state.enemies.length; i++) {
+            const e1 = state.enemies[i];
+            if (e1.type !== 'hunter') continue;
+            for (let j = i + 1; j < state.enemies.length; j++) {
+                const e2 = state.enemies[j];
+                if (e2.type !== 'hunter') continue;
+                const sepX = e1.x - e2.x;
+                const sepY = e1.y - e2.y;
+                const sepDistSq = sepX * sepX + sepY * sepY;
+                if (sepDistSq < 1600 && sepDistSq > 0.01) { // 40px mutual clearance
+                    const sepDist = Math.sqrt(sepDistSq);
+                    const push = (40 - sepDist) * 0.35;
+                    const nx = sepX / sepDist;
+                    const ny = sepY / sepDist;
+                    e1.x += nx * push;
+                    e1.y += ny * push;
+                    e2.x -= nx * push;
+                    e2.y -= ny * push;
+                }
+            }
+        }
+
         state.enemies.forEach(e => {
             const distToPlayer = Math.hypot(e.x - state.player.x, e.y - state.player.y);
 
-            // Despawn & Reposition if drifted too far away (> 900px) - Smart Leash in Rear/Flanks
-            if (distToPlayer > 900) {
-                const heading = state.player.moving ? state.player.angle : Math.random() * Math.PI * 2;
-                const rearAngle = heading + Math.PI + (Math.random() - 0.5) * (Math.PI * 0.85);
-                const newDist = 520 + Math.random() * 200;
-                e.x = state.player.x + Math.cos(rearAngle) * newDist;
-                e.y = state.player.y + Math.sin(rearAngle) * newDist;
+            // Fair Open-World Leashing: Only reposition if truly lost in the distance (> 1800px)
+            // Throttled to at most 1 enemy every 60 frames to completely eliminate sudden swarm ambushes
+            if (distToPlayer > 1800 && (state.time - state.lastEnemyLeashTime > 60)) {
+                state.lastEnemyLeashTime = state.time;
+                const spawnAngle = Math.random() * Math.PI * 2;
+                const newDist = 950 + Math.random() * 350; // Re-enters naturally from far outside viewport
+                e.x = state.player.x + Math.cos(spawnAngle) * newDist;
+                e.y = state.player.y + Math.sin(spawnAngle) * newDist;
                 e.state = 'patrol';
                 return;
             }
@@ -578,7 +605,12 @@ export default function GameCanvas({
                         e.timer = config.alertReaction || 8; // Gentle reaction delay in early levels, instant in late levels
                         e.angle = Math.atan2(state.player.y - e.y, state.player.x - e.x);
                         spawnParticles(e.x, e.y, '#FF3333', 6);
-                        soundManager.triggerHunterAlert();
+
+                        // Throttled alert audio: prevents ear-piercing audio stutter when multiple hunters spot player
+                        if (state.time - (state.lastHunterAlertAudio || 0) >= 60) {
+                            state.lastHunterAlertAudio = state.time;
+                            soundManager.triggerHunterAlert();
+                        }
                     }
                 } else if (e.state === 'alert') {
                     e.angle = Math.atan2(state.player.y - e.y, state.player.x - e.x);
@@ -588,26 +620,28 @@ export default function GameCanvas({
                     isChased = true;
                     const angleToPlayer = Math.atan2(state.player.y - e.y, state.player.x - e.x);
 
-                    // Intelligent whisker navigation: look ahead to anticipate and round obstacles
+                    // Whisker navigation: only run multi-ray checks when close to the viewport (< 750px)
                     let moveAngle = angleToPlayer;
-                    const lookAheadDist = 34;
-                    const directX = e.x + Math.cos(angleToPlayer) * lookAheadDist;
-                    const directY = e.y + Math.sin(angleToPlayer) * lookAheadDist;
+                    if (distToPlayer < 750) {
+                        const lookAheadDist = 34;
+                        const directX = e.x + Math.cos(angleToPlayer) * lookAheadDist;
+                        const directY = e.y + Math.sin(angleToPlayer) * lookAheadDist;
 
-                    if (phys.checkCollisionCircle(directX, directY, e.r)) {
-                        // Direct heading blocked: test angled whiskers to steer around obstacle
-                        const whiskerAngles = [
-                            angleToPlayer - 0.72,
-                            angleToPlayer + 0.72,
-                            angleToPlayer - 1.25,
-                            angleToPlayer + 1.25
-                        ];
-                        for (const wAngle of whiskerAngles) {
-                            const wx = e.x + Math.cos(wAngle) * lookAheadDist;
-                            const wy = e.y + Math.sin(wAngle) * lookAheadDist;
-                            if (!phys.checkCollisionCircle(wx, wy, e.r)) {
-                                moveAngle = wAngle;
-                                break;
+                        if (phys.checkCollisionCircle(directX, directY, e.r)) {
+                            // Direct heading blocked: test angled whiskers to steer around obstacle
+                            const whiskerAngles = [
+                                angleToPlayer - 0.72,
+                                angleToPlayer + 0.72,
+                                angleToPlayer - 1.25,
+                                angleToPlayer + 1.25
+                            ];
+                            for (const wAngle of whiskerAngles) {
+                                const wx = e.x + Math.cos(wAngle) * lookAheadDist;
+                                const wy = e.y + Math.sin(wAngle) * lookAheadDist;
+                                if (!phys.checkCollisionCircle(wx, wy, e.r)) {
+                                    moveAngle = wAngle;
+                                    break;
+                                }
                             }
                         }
                     }
@@ -1081,18 +1115,8 @@ export default function GameCanvas({
         ctx.fillStyle = '#0e160d';
         ctx.fillRect(0, 0, width, height);
 
-        // 2. Fetch Visible Objects from Active Chunks
-        const visibleChunks = worldGenRef.current.getVisibleChunks(cam.x, cam.y, width, height);
-        const visibleObjects = [];
-        visibleChunks.forEach(chunk => {
-            chunk.objects.forEach(obj => {
-                // Viewport cull
-                if (obj.x >= cam.x - 120 && obj.x <= cam.x + width + 120 &&
-                    obj.y >= cam.y - 120 && obj.y <= cam.y + height + 120) {
-                    visibleObjects.push(obj);
-                }
-            });
-        });
+        // 2. Visible Objects (Reused from current frame's update)
+        const visibleObjects = state.visibleObjects || [];
 
         // 3. 2.5D Y-Depth Sorted Render Queue (Rounded integer camera prevents subpixel shimmer)
         const roundCamX = Math.round(cam.x);

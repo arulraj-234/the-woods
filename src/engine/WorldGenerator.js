@@ -91,36 +91,34 @@ export class WorldGenerator {
         const worldStartX = cx * CHUNK_SIZE;
         const worldStartY = cy * CHUNK_SIZE;
 
-        // Dedicated Sacred Shrine Generation: Exactly 1 guaranteed shrine per 3x3 macro chunk grid (2400x2400px)
+        // Sacred Sanctuary Generation: Guaranteed Starter Shrine at spawn + 1 Shrine per 2x2 macro grid (1600x1600px)
         let hasShrine = false;
         let shrineX = 0;
         let shrineY = 0;
         let shrineTemplate = null;
 
-        const macroGridSize = 3; // 3x3 chunks = 2400x2400px
+        const macroGridSize = 2; // 2x2 chunks = 1600x1600px (dense, reliable sanctuary distribution)
         const macroX = Math.floor(cx / macroGridSize);
         const macroY = Math.floor(cy / macroGridSize);
         const macroSeed = hash2(macroX, macroY, 8492);
         const macroRng = createRNG(macroSeed);
 
-        let sChunkOffsetX = Math.floor(macroRng() * macroGridSize);
-        let sChunkOffsetY = Math.floor(macroRng() * macroGridSize);
+        const sChunkOffsetX = Math.floor(macroRng() * macroGridSize);
+        const sChunkOffsetY = Math.floor(macroRng() * macroGridSize);
 
-        let targetShrineCX = macroX * macroGridSize + sChunkOffsetX;
-        let targetShrineCY = macroY * macroGridSize + sChunkOffsetY;
+        const targetShrineCX = macroX * macroGridSize + sChunkOffsetX;
+        const targetShrineCY = macroY * macroGridSize + sChunkOffsetY;
 
-        // Prevent shrine from spawning directly inside the immediate 3x3 spawn buffer zone (chunks [-1..1], [-1..1])
-        if (Math.abs(targetShrineCX) <= 1 && Math.abs(targetShrineCY) <= 1) {
-            const signX = macroX >= 0 ? 1 : -1;
-            const signY = macroY >= 0 ? 1 : -1;
-            targetShrineCX = signX * 2;
-            targetShrineCY = signY * 2;
-        }
-
-        if (cx === targetShrineCX && cy === targetShrineCY) {
+        if (cx === 0 && cy === 0) {
+            // Guaranteed Introductory Shrine: Sanctuary of Light just northeast of spawn (distance ~420px)
             hasShrine = true;
-            shrineX = worldStartX + 180 + macroRng() * (CHUNK_SIZE - 360);
-            shrineY = worldStartY + 180 + macroRng() * (CHUNK_SIZE - 360);
+            shrineX = 350;
+            shrineY = -240;
+            shrineTemplate = SHRINE_TEMPLATES[1]; // Sanctuary of Light
+        } else if (cx === targetShrineCX && cy === targetShrineCY) {
+            hasShrine = true;
+            shrineX = worldStartX + 160 + macroRng() * (CHUNK_SIZE - 320);
+            shrineY = worldStartY + 160 + macroRng() * (CHUNK_SIZE - 320);
             shrineTemplate = SHRINE_TEMPLATES[Math.floor(macroRng() * SHRINE_TEMPLATES.length)];
         }
 
