@@ -60,4 +60,19 @@ describe("The Woods", () => {
     expect(screen.getAllByRole("button", { name: "SETTINGS" })).toHaveLength(2);
     expect(screen.getByRole("button", { name: "RETURN TO TITLE" })).toBeInTheDocument();
   });
+
+  it("launches game into the woods and displays in-game HUD", () => {
+    localStorage.setItem("th_onboarded", "true");
+    localStorage.setItem("th_playername", "ShadowWalker");
+
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: "PLAY" }));
+    fireEvent.click(screen.getByRole("button", { name: "ENTER THE WOODS" }));
+
+    // Verify HUD elements are visible in game
+    expect(screen.getByText("ShadowWalker")).toBeInTheDocument();
+    expect(screen.getByText(/SCORE:\s*0/)).toBeInTheDocument();
+    expect(screen.getByText(/LEVEL:\s*1/)).toBeInTheDocument();
+  });
 });

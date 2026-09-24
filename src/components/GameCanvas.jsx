@@ -7,14 +7,14 @@ import { WorldGenerator } from '../engine/WorldGenerator';
 
 // --- Constants ---
 const MAX_FUEL = 1000;
-const FUEL_DECAY = 0.45;
+const FUEL_DECAY = 0.52;
 
 const LEVEL_CONFIGS = [
-    { level: 1, minScore: 0, title: 'THE WHISPERING WOODS', hunters: 4, ghosts: 1, speedMult: 1.0 },
-    { level: 2, minScore: 30, title: 'THE CRIMSON THICKET', hunters: 5, ghosts: 2, speedMult: 1.12 },
-    { level: 3, minScore: 70, title: 'THE HAUNTED GROVE', hunters: 6, ghosts: 3, speedMult: 1.22 },
-    { level: 4, minScore: 120, title: 'THE ANCIENT RUINS', hunters: 8, ghosts: 4, speedMult: 1.32 },
-    { level: 5, minScore: 190, title: 'THE ENDLESS NIGHTMARE', hunters: 10, ghosts: 6, speedMult: 1.45 }
+    { level: 1, minScore: 0, title: 'THE WHISPERING WOODS', hunters: 5, ghosts: 2, speedMult: 1.0 },
+    { level: 2, minScore: 40, title: 'THE CRIMSON THICKET', hunters: 7, ghosts: 3, speedMult: 1.12 },
+    { level: 3, minScore: 95, title: 'THE HAUNTED GROVE', hunters: 9, ghosts: 4, speedMult: 1.24 },
+    { level: 4, minScore: 160, title: 'THE ANCIENT RUINS', hunters: 12, ghosts: 6, speedMult: 1.36 },
+    { level: 5, minScore: 240, title: 'THE ENDLESS NIGHTMARE', hunters: 15, ghosts: 8, speedMult: 1.50 }
 ];
 
 export default function GameCanvas({
@@ -221,32 +221,32 @@ export default function GameCanvas({
         const isSprinting = isMoving && input.isSprinting() && state.player.fuel > 30;
         state.player.isSprinting = isSprinting;
 
-        const baseSpeed = 5.8 * (perk.speedMult || 1.0);
-        const playerSpeed = isSprinting ? baseSpeed * (perk.sprintMult || 1.55) : baseSpeed;
+        const baseSpeed = 5.4 * (perk.speedMult || 1.0);
+        const playerSpeed = isSprinting ? baseSpeed * (perk.sprintMult || 1.58) : baseSpeed;
 
         if (isMoving) {
             state.player.angle = Math.atan2(dy, dx);
             state.player.walkPhase += playerSpeed * 0.085;
             phys.moveEntity(state.player, dx, dy, playerSpeed);
 
-            // Subtle ground dust kicked up from shoes/boots (strictly earth-toned, at ground level)
-            const dustChance = isSprinting ? 0.6 : 0.08;
+            // Ground dust kicked up strictly at feet/boot contact points
+            const dustChance = isSprinting ? 0.45 : 0.08;
             if (Math.random() < dustChance) {
-                const footSpread = (Math.random() - 0.5) * 8;
+                const footSpread = (Math.random() - 0.5) * 6;
                 state.particles.push({
-                    x: state.player.x - Math.cos(state.player.angle) * 8 + footSpread,
-                    y: state.player.y + 3 + Math.random() * 3, // Feet at bottom of character sprite
-                    dx: -Math.cos(state.player.angle) * (isSprinting ? 1.8 : 0.6) + (Math.random() - 0.5) * 0.4,
-                    dy: -Math.sin(state.player.angle) * 0.5 - Math.random() * 0.3,
-                    life: isSprinting ? 20 : 15,
-                    color: Math.random() < 0.5 ? 'rgba(105, 90, 75, 0.45)' : 'rgba(130, 115, 95, 0.35)', // Translucent dirt/earth
-                    size: Math.random() * 2.5 + (isSprinting ? 2.6 : 1.6)
+                    x: state.player.x - Math.cos(state.player.angle) * 7 + footSpread,
+                    y: state.player.y + 4 + Math.random() * 2, // Floor level behind boots
+                    dx: -Math.cos(state.player.angle) * (isSprinting ? 1.4 : 0.5) + (Math.random() - 0.5) * 0.3,
+                    dy: -Math.sin(state.player.angle) * 0.4 - Math.random() * 0.2,
+                    life: isSprinting ? 18 : 12,
+                    color: Math.random() < 0.5 ? 'rgba(125, 110, 95, 0.26)' : 'rgba(145, 130, 115, 0.18)', // Soft translucent earthy dust
+                    size: Math.random() * 2.0 + (isSprinting ? 2.4 : 1.4)
                 });
             }
         }
 
         // 4. Torch Fuel & Embers (Sprint burns extra fuel, modulated by Lyra's / character perk)
-        const sprintBurnMult = (perk.sprintBurnMult || 1.8);
+        const sprintBurnMult = (perk.sprintBurnMult || 2.0);
         const fuelDecay = isSprinting
             ? FUEL_DECAY * sprintBurnMult * (perk.fuelBurn || 1.0)
             : FUEL_DECAY * (perk.fuelBurn || 1.0);
@@ -272,37 +272,34 @@ export default function GameCanvas({
             state.player.fuel = 0;
             if (!state.player.dead) {
                 state.player.dead = true;
-                soundManager.triggerDeath();
                 if (callbacksRef.current.onGameOver) callbacksRef.current.onGameOver();
             }
             return;
-        } else if (state.player.fuel > 0 && Math.random() < 0.38) {
-            // Embers and dark soot flakes emitting directly from the raised torch flame
+        } else if (state.player.fuel > 0 && Math.random() < 0.42) {
+            // Luminous golden and fiery flame embers rising skyward from torch tip
             // Matches drawCharacter: torch flame is at (x + facing * 19, y - 38)
             const facing = state.player.facing || 1;
             const flameX = state.player.x + facing * 19;
             const flameY = state.player.y - 38;
-            const isSoot = Math.random() < 0.22; // 22% dark soot/ash, 78% glowing fiery embers
+            const emberColors = ['#FF4500', '#FF9800', '#FFC107', '#FFF59D', '#FF7043'];
 
             state.particles.push({
-                x: flameX + (Math.random() - 0.5) * 5,
-                y: flameY + (Math.random() - 0.5) * 5,
-                dx: (Math.random() - 0.5) * 0.8 + (facing * 0.25),
-                dy: -Math.random() * 1.8 - 0.9, // Strong thermal updraft rising into the sky
-                life: 28 + Math.random() * 16,
-                color: isSoot
-                    ? 'rgba(40, 32, 28, 0.75)' // Charcoal dark soot flake
-                    : (Math.random() < 0.6 ? '#FFA500' : (Math.random() < 0.5 ? '#FFD700' : '#FF4500')), // Glowing flame ember
-                size: isSoot ? (Math.random() * 1.8 + 1.2) : (Math.random() * 2.4 + 1.2)
+                x: flameX + (Math.random() - 0.5) * 4,
+                y: flameY + (Math.random() - 0.5) * 4,
+                dx: (Math.random() - 0.5) * 0.6 + (facing * 0.2),
+                dy: -Math.random() * 2.0 - 0.8, // Buoyant thermal updraft
+                life: 24 + Math.random() * 14,
+                color: emberColors[Math.floor(Math.random() * emberColors.length)], // Brilliant glowing sparks (no dirty soot)
+                size: Math.random() * 2.0 + 1.2
             });
         }
 
         // 5. Score Progression & Survival Points
-        if (state.time % 60 === 0) {
+        if (state.time % 75 === 0) {
             state.score = (state.score || 0) + 1;
             scoreRef.current = state.score;
             if (callbacksRef.current.onScoreUpdate) {
-                callbacksRef.current.onScoreUpdate(1); // Steady survival score (+1 point per 1.0s in the woods)
+                callbacksRef.current.onScoreUpdate(1); // Steady survival score (+1 point per 1.25s)
             }
         }
 
@@ -320,7 +317,7 @@ export default function GameCanvas({
             const cfg = LEVEL_CONFIGS[calculatedLevel - 1];
             state.levelBannerText = `LEVEL ${calculatedLevel}: ${cfg.title}`;
             state.levelBannerTimer = 180; // 3 seconds banner
-            state.player.fuel = Math.min(MAX_FUEL, state.player.fuel + 350); // Level-up bonus fuel
+            state.player.fuel = Math.min(MAX_FUEL, state.player.fuel + 160); // Balanced level-up bonus fuel
             playSound('levelup');
             if (callbacksRef.current.onLevelComplete) {
                 callbacksRef.current.onLevelComplete(calculatedLevel);
@@ -355,13 +352,13 @@ export default function GameCanvas({
             if (obj.hasTorch) {
                 const dist = Math.hypot(obj.x - state.player.x, obj.y - state.player.y);
                 if (dist < torchPickupDist) {
-                    // Balanced fuel refill: +135 base fuel (+ Vance / Gideon bonuses)
-                    const fuelGain = 135 + (perk.torchFuelBonus || 0);
+                    // Balanced fuel refill: +100 base fuel (+ Vance / Gideon bonuses)
+                    const fuelGain = 100 + (perk.torchFuelBonus || 0);
                     state.player.fuel = Math.min(MAX_FUEL, state.player.fuel + fuelGain);
                     obj.hasTorch = false;
                     spawnParticles(obj.x, obj.y - 15, '#FFA500', 12);
                     playSound('refuel');
-                    const torchPts = 15 + (perk.torchBonus || 0);
+                    const torchPts = 20 + (perk.torchBonus || 0);
                     state.score = (state.score || 0) + torchPts;
                     scoreRef.current = state.score;
                     if (callbacksRef.current.onScoreUpdate) {
@@ -372,7 +369,8 @@ export default function GameCanvas({
                 const dist = Math.hypot(obj.x - state.player.x, obj.y - state.player.y);
                 if (dist < 80) {
                     obj.activated = true;
-                    state.player.fuel = MAX_FUEL; // Full refuel blessing
+                    // Consecration blessing: replenishes +350 fuel (or restores to at least 600)
+                    state.player.fuel = Math.min(MAX_FUEL, Math.max(600, state.player.fuel + 350));
                     state.levelBannerText = `${obj.shrineName ? obj.shrineName.toUpperCase() : 'ANCIENT SHRINE'} CONSECRATED! RING OF PROTECTION ACTIVE`;
                     state.levelBannerTimer = 180;
 
@@ -455,18 +453,17 @@ export default function GameCanvas({
             }
 
             state.player.dead = true;
-            soundManager.triggerDeath();
             if (callbacksRef.current.onGameOver) callbacksRef.current.onGameOver();
         };
 
         state.enemies.forEach(e => {
             const distToPlayer = Math.hypot(e.x - state.player.x, e.y - state.player.y);
 
-            // Despawn & Reposition if drifted too far away (> 950px) - Smart Leash in Rear/Flanks
-            if (distToPlayer > 950) {
+            // Despawn & Reposition if drifted too far away (> 900px) - Smart Leash in Rear/Flanks
+            if (distToPlayer > 900) {
                 const heading = state.player.moving ? state.player.angle : Math.random() * Math.PI * 2;
-                const rearAngle = heading + Math.PI + (Math.random() - 0.5) * (Math.PI * 0.9);
-                const newDist = 620 + Math.random() * 220;
+                const rearAngle = heading + Math.PI + (Math.random() - 0.5) * (Math.PI * 0.85);
+                const newDist = 520 + Math.random() * 200;
                 e.x = state.player.x + Math.cos(rearAngle) * newDist;
                 e.y = state.player.y + Math.sin(rearAngle) * newDist;
                 e.state = 'patrol';
@@ -482,8 +479,8 @@ export default function GameCanvas({
                     const dy = (e.y - obj.y) / repelY;
                     if (dx * dx + dy * dy < 1.0) {
                         const seAngle = Math.atan2(e.y - obj.y, e.x - obj.x);
-                        e.x += Math.cos(seAngle) * 4;
-                        e.y += Math.sin(seAngle) * 4;
+                        e.x += Math.cos(seAngle) * 5;
+                        e.y += Math.sin(seAngle) * 5;
                         e.state = 'patrol';
                     }
                 }
@@ -498,8 +495,8 @@ export default function GameCanvas({
                 // --- GHOST / PHANTOM AI (Phases through trees/rocks, eerie spectral stalker) ---
                 e.alpha = 0.35 + Math.sin(state.time * 0.08 + e.id) * 0.3;
 
-                // Lyra's Ghost Stealth: phantoms only detect her at 140px vs 250px!
-                const ghostDetectRange = perk.ghostStealth ? 140 : 250;
+                // Lyra's Ghost Stealth: phantoms only detect her at 180px vs 380px!
+                const ghostDetectRange = perk.ghostStealth ? 180 : 380;
 
                 if (distToPlayer < ghostDetectRange) {
                     if (e.state !== 'chase') {
@@ -510,17 +507,17 @@ export default function GameCanvas({
                     const angleToPlayer = Math.atan2(state.player.y - e.y, state.player.x - e.x);
                     e.angle = angleToPlayer;
 
-                    // Obstacle Drag: phantoms suffer slight drag while gliding through solid obstacles
+                    // Obstacle Drag: phantoms glide effortlessly through obstacles with minimal resistance
                     const insideObstacle = phys.checkCollisionCircle(e.x, e.y, 12);
-                    const obstacleDrag = insideObstacle ? 0.78 : 1.0;
+                    const obstacleDrag = insideObstacle ? 0.90 : 1.0;
 
-                    // Ghost Chase Speed: 4.6 * speedMult (Fast, terrifying supernatural surge)
-                    const ghostSpeed = 4.6 * speedMult * obstacleDrag;
+                    // Ghost Chase Speed: 5.8 base at Lvl 1 (faster than player walking 5.4, requiring sprint or ward!)
+                    const ghostSpeed = (5.8 + (state.currentLevel - 1) * 0.45) * speedMult * obstacleDrag;
                     e.x += Math.cos(e.angle) * ghostSpeed;
                     e.y += Math.sin(e.angle) * ghostSpeed;
 
                     // Ghost mist particle
-                    if (Math.random() < 0.25) {
+                    if (Math.random() < 0.28) {
                         state.particles.push({
                             x: e.x + (Math.random() - 0.5) * 12,
                             y: e.y + (Math.random() - 0.5) * 12,
@@ -531,12 +528,14 @@ export default function GameCanvas({
                             size: Math.random() * 3 + 2
                         });
                     }
+
+                    if (distToPlayer > 540) e.state = 'patrol';
                 } else {
                     e.state = 'patrol';
                     // Drift briskly in current angle
-                    e.x += Math.cos(e.angle) * 1.5;
-                    e.y += Math.sin(e.angle) * 1.5;
-                    if (Math.random() < 0.03) e.angle += (Math.random() - 0.5) * 1.5;
+                    e.x += Math.cos(e.angle) * 1.8;
+                    e.y += Math.sin(e.angle) * 1.8;
+                    if (Math.random() < 0.035) e.angle += (Math.random() - 0.5) * 1.5;
                 }
 
                 // Lethal contact with player (deflectable by Torin, warded by Sanctuary)
@@ -544,26 +543,26 @@ export default function GameCanvas({
                     handleLethalContact(e);
                 }
             } else {
-                // --- HUNTER AI (Physical: Dangerous, relentless, high-octane chase blocked by trees & rocks!) ---
-                // Player walks at 5.8 and sprints at 8.8-11.0. Hunter chases furiously at 5.3 * speedMult!
-                // Walking leaves the hunter hot on your heels; sprinting or dodging around trees lets you escape!
-                const hunterChaseSpeed = 5.3 * speedMult;
-                const hunterPatrolSpeed = 1.9;
+                // --- HUNTER AI (Physical Predator: Fast, relentless, intelligent whisker navigation around obstacles) ---
+                // Level 1: 6.2 chase speed (Player base walk is 5.4). Player MUST sprint or break line-of-sight!
+                const hunterChaseSpeed = (6.2 + (state.currentLevel - 1) * 0.55) * speedMult;
+                const hunterPatrolSpeed = 2.4;
 
                 if (e.state === 'patrol') {
                     const dx = Math.cos(e.angle);
                     const dy = Math.sin(e.angle);
-                    // Move with full obstacle collision (cannot pass through trees or rocks)
                     const moved = phys.moveEntity(e, dx, dy, hunterPatrolSpeed);
                     if (!moved || Math.random() < 0.02) {
                         e.angle = Math.random() * Math.PI * 2;
                     }
 
-                    if (distToPlayer < 310 && state.player.fuel > 0) {
+                    // Sprinting footsteps create noise that alerts hunters from further away (480px vs 380px)
+                    const alertRange = state.player.isSprinting ? 480 : 380;
+                    if (distToPlayer < alertRange && state.player.fuel > 0) {
                         e.state = 'alert';
-                        e.timer = 10; // Hair-trigger reflex
+                        e.timer = 8; // Instant predatory reflex
                         e.angle = Math.atan2(state.player.y - e.y, state.player.x - e.x);
-                        spawnParticles(e.x, e.y, '#FF3333', 5);
+                        spawnParticles(e.x, e.y, '#FF3333', 6);
                         soundManager.triggerHunterAlert();
                     }
                 } else if (e.state === 'alert') {
@@ -573,24 +572,49 @@ export default function GameCanvas({
                 } else if (e.state === 'chase') {
                     isChased = true;
                     const angleToPlayer = Math.atan2(state.player.y - e.y, state.player.x - e.x);
-                    e.angle = angleToPlayer;
+
+                    // Intelligent whisker navigation: look ahead to anticipate and round obstacles
+                    let moveAngle = angleToPlayer;
+                    const lookAheadDist = 34;
+                    const directX = e.x + Math.cos(angleToPlayer) * lookAheadDist;
+                    const directY = e.y + Math.sin(angleToPlayer) * lookAheadDist;
+
+                    if (phys.checkCollisionCircle(directX, directY, e.r)) {
+                        // Direct heading blocked: test angled whiskers to steer around obstacle
+                        const whiskerAngles = [
+                            angleToPlayer - 0.72,
+                            angleToPlayer + 0.72,
+                            angleToPlayer - 1.25,
+                            angleToPlayer + 1.25
+                        ];
+                        for (const wAngle of whiskerAngles) {
+                            const wx = e.x + Math.cos(wAngle) * lookAheadDist;
+                            const wy = e.y + Math.sin(wAngle) * lookAheadDist;
+                            if (!phys.checkCollisionCircle(wx, wy, e.r)) {
+                                moveAngle = wAngle;
+                                break;
+                            }
+                        }
+                    }
+
+                    e.angle = moveAngle;
                     const dx = Math.cos(e.angle);
                     const dy = Math.sin(e.angle);
 
                     // Move with strict physical collision - BLOCKED by trees, rocks, and shrines
                     const moved = phys.moveEntity(e, dx, dy, hunterChaseSpeed);
 
-                    // If blocked head-on by an obstacle, slide/steer around it briskly
+                    // Fallback slide if caught at acute angle
                     if (!moved) {
-                        const slideAngle1 = e.angle + 0.85;
-                        const slideAngle2 = e.angle - 0.85;
+                        const slideAngle1 = e.angle + 0.95;
+                        const slideAngle2 = e.angle - 0.95;
                         const s1 = phys.moveEntity(e, Math.cos(slideAngle1), Math.sin(slideAngle1), hunterChaseSpeed * 0.92);
                         if (!s1) {
                             phys.moveEntity(e, Math.cos(slideAngle2), Math.sin(slideAngle2), hunterChaseSpeed * 0.92);
                         }
                     }
 
-                    if (distToPlayer > 560) e.state = 'patrol';
+                    if (distToPlayer > 660) e.state = 'patrol';
 
                     // Lethal contact with player (deflectable by Torin, warded by Sanctuary)
                     if (distToPlayer < 30) {
@@ -1114,7 +1138,8 @@ export default function GameCanvas({
         const py = state.player.y - roundCamY;
 
         const maxR = 90 + (fuelRatio * 220);
-        const flicker = (Math.random() - 0.5) * 8;
+        // Smooth atmospheric flame breathing (eliminates jittery visual pulsation)
+        const flicker = Math.sin(state.time * 0.08) * 2.2 + Math.sin(state.time * 0.17) * 1.4;
         const currentR = fuelRatio > 0 ? Math.max(25, maxR + flicker) : 0;
 
         if (!lightCanvasRef.current) {
