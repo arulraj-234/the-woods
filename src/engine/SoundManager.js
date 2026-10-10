@@ -2,6 +2,19 @@
 // Handles menu & game ambiance, torch fire crackle, walk/run footstep loops,
 // dynamic chase tension, monster voices, and Web Audio procedural chimes.
 
+function resolveAudioUrl(filename) {
+    try {
+        const base = (import.meta.env.BASE_URL || './').replace(/\/+$/, '') + '/';
+        const rel = `${base}audio/${filename}`;
+        if (typeof window !== 'undefined' && window.location) {
+            return new URL(rel, window.location.href).href;
+        }
+        return rel;
+    } catch {
+        return `./audio/${filename}`;
+    }
+}
+
 class SoundManager {
     constructor() {
         this.masterVolume = 0.8;
@@ -10,23 +23,25 @@ class SoundManager {
 
         this.initialized = false;
         this.audioCtx = null;
+        this._unlockedSilentBuffer = false;
+        this.pendingAudio = null;
 
-        // Long-running loop audio elements
+        // Long-running loop audio elements with boosted base volumes
         this.loops = {
-            menuAmbience: this.createAudio('/audio/ambience_menu.mp3', true, 0.4),
-            gameAmbience: this.createAudio('/audio/ambience_game.mp3', true, 0.45),
-            torchFire: this.createAudio('/audio/torch_fire.mp3', true, 0.25),
-            walk: this.createAudio('/audio/walk.mp3', true, 0.35),
-            run: this.createAudio('/audio/run.mp3', true, 0.5),
-            chaseTension: this.createAudio('/audio/chase_tension.mp3', true, 0.0) // Faded dynamically
+            menuAmbience: this.createAudio(resolveAudioUrl('ambience_menu.mp3'), true, 0.95),
+            gameAmbience: this.createAudio(resolveAudioUrl('ambience_game.mp3'), true, 0.75),
+            torchFire: this.createAudio(resolveAudioUrl('torch_fire.mp3'), true, 0.55),
+            walk: this.createAudio(resolveAudioUrl('walk.mp3'), true, 0.95),
+            run: this.createAudio(resolveAudioUrl('run.mp3'), true, 1.0),
+            chaseTension: this.createAudio(resolveAudioUrl('chase_tension.mp3'), true, 0.0) // Faded dynamically
         };
 
         // One-shot sound paths
         this.sfxUrls = {
-            hunterAlert: '/audio/hunter_alert.mp3',
-            ghostStalk: '/audio/ghost_stalk.mp3',
-            playerDeath: '/audio/player_death.mp3',
-            cineBoom: '/audio/cine_boom.mp3'
+            hunterAlert: resolveAudioUrl('hunter_alert.mp3'),
+            ghostStalk: resolveAudioUrl('ghost_stalk.mp3'),
+            playerDeath: resolveAudioUrl('player_death.mp3'),
+            cineBoom: resolveAudioUrl('cine_boom.mp3')
         };
 
         // SFX Throttle timers (timestamps)
@@ -47,7 +62,8 @@ class SoundManager {
             audio.loop = loop;
             audio.preload = 'auto';
             audio._baseVolume = defaultVol;
-            audio.volume = defaultVol * this.masterVolume;
+            audio.volume = Math.max(0, Math.min(1, defaultVol * this.masterVolume));
+            try { audio.load(); } catch {}
             return audio;
         } catch {
             return null;
@@ -56,18 +72,42 @@ class SoundManager {
 
     // Unlock audio context and audio elements upon user interaction (browser policy)
     unlock() {
-        if (this.initialized) return;
-        this.initialized = true;
-
         try {
             const AudioCtx = window.AudioContext || window.webkitAudioContext;
-            if (AudioCtx && !this.audioCtx) {
-                this.audioCtx = new AudioCtx();
+            if (AudioCtx) {
+                if (!this.audioCtx) {
+                    this.audioCtx = new AudioCtx();
+                }
                 if (this.audioCtx.state === 'suspended') {
-                    this.audioCtx.resume();
+                    this.audioCtx.resume().catch(() => {});
+                }
+                if (this.audioCtx.state === 'running' && !this._unlockedSilentBuffer) {
+                    try {
+                        const buffer = this.audioCtx.createBuffer(1, 1, 22050);
+                        const source = this.audioCtx.createBufferSource();
+                        source.buffer = buffer;
+                        source.connect(this.audioCtx.destination);
+                        source.start(0);
+                        this._unlockedSilentBuffer = true;
+                    } catch {}
                 }
             }
         } catch {}
+
+        this.initialized = true;
+
+        // If there was an audio track waiting to play that was blocked by autoplay, play it now
+        if (this.pendingAudio) {
+            const audio = this.pendingAudio;
+            this.pendingAudio = null;
+            this.safePlay(audio);
+        } else if (this.ambienceEnabled) {
+            if (this.currentScreen === 'game') {
+                this.playGameAmbience();
+            } else {
+                this.playMenuAmbience();
+            }
+        }
     }
 
     setSettings(settings = {}) {
@@ -84,7 +124,7 @@ class SoundManager {
         // Update active loop volumes
         Object.values(this.loops).forEach(audio => {
             if (audio) {
-                const base = audio._baseVolume || 0.5;
+                const base = audio._baseVolume ?? 0.5;
                 audio.volume = Math.max(0, Math.min(1, base * this.masterVolume));
             }
         });
@@ -102,12 +142,17 @@ class SoundManager {
     }
 
     safePlay(audio) {
-        if (!audio) return;
+        if (!audio || typeof window === 'undefined') return;
         try {
+            const base = audio._baseVolume ?? 0.5;
+            audio.volume = Math.max(0, Math.min(1, base * this.masterVolume));
             const promise = audio.play();
             if (promise && promise.catch) {
-                promise.catch(() => {
-                    // Browser prevented autoplay before gesture
+                promise.catch((err) => {
+                    // Browser prevented autoplay before gesture: store for next gesture
+                    if (err && err.name === 'NotAllowedError') {
+                        this.pendingAudio = audio;
+                    }
                 });
             }
         } catch {}
@@ -141,7 +186,8 @@ class SoundManager {
         if (!this.ambienceEnabled) return;
         const menu = this.loops.menuAmbience;
         if (menu) {
-            menu.volume = 0.42 * this.masterVolume;
+            menu._baseVolume = 0.95;
+            menu.volume = Math.max(0, Math.min(1, 0.95 * this.masterVolume));
             this.safePlay(menu);
         }
     }
@@ -153,7 +199,8 @@ class SoundManager {
         if (this.ambienceEnabled) {
             const game = this.loops.gameAmbience;
             if (game) {
-                game.volume = 0.45 * this.masterVolume;
+                game._baseVolume = 0.75;
+                game.volume = Math.max(0, Math.min(1, 0.75 * this.masterVolume));
                 this.safePlay(game);
             }
         }
@@ -173,7 +220,8 @@ class SoundManager {
             const runAudio = this.loops.run;
             if (runAudio) {
                 runAudio.playbackRate = 1.22;
-                runAudio.volume = 0.55 * this.masterVolume;
+                runAudio._baseVolume = 1.0;
+                runAudio.volume = Math.max(0, Math.min(1, 1.0 * this.masterVolume));
                 if (runAudio.paused) this.safePlay(runAudio);
             }
         } else {
@@ -181,7 +229,8 @@ class SoundManager {
             const walkAudio = this.loops.walk;
             if (walkAudio) {
                 walkAudio.playbackRate = 1.1;
-                walkAudio.volume = 0.38 * this.masterVolume;
+                walkAudio._baseVolume = 0.95;
+                walkAudio.volume = Math.max(0, Math.min(1, 0.95 * this.masterVolume));
                 if (walkAudio.paused) this.safePlay(walkAudio);
             }
         }
@@ -197,7 +246,8 @@ class SoundManager {
         }
 
         // Modulate crackle volume with remaining flame strength
-        const fireVol = (0.12 + fuelRatio * 0.28) * this.masterVolume;
+        const fireVol = (0.35 + fuelRatio * 0.55) * this.masterVolume;
+        fire._baseVolume = 0.35 + fuelRatio * 0.55;
         fire.volume = Math.max(0, Math.min(1, fireVol));
         if (fire.paused) {
             this.safePlay(fire);
@@ -222,7 +272,8 @@ class SoundManager {
 
         // Distance urgency (closer = louder tense strings/pulse)
         const urgency = 1 - Math.min(1, minThreatDist / 500);
-        const targetVol = (0.2 + urgency * 0.55) * this.masterVolume;
+        const targetVol = (0.25 + urgency * 0.55) * this.masterVolume;
+        tension._baseVolume = 0.25 + urgency * 0.55;
         tension.volume = Math.max(0, Math.min(1, targetVol));
         if (tension.paused) {
             this.safePlay(tension);
@@ -238,7 +289,7 @@ class SoundManager {
         if (now - this.lastHunterAlert < 12000) return;
         this.lastHunterAlert = now;
 
-        this.playOneShot(this.sfxUrls.hunterAlert, 0.85);
+        this.playOneShot(this.sfxUrls.hunterAlert, 1.0);
     }
 
     triggerGhostStalk() {
@@ -248,7 +299,7 @@ class SoundManager {
         if (now - this.lastGhostStalk < 9000) return;
         this.lastGhostStalk = now;
 
-        this.playOneShot(this.sfxUrls.ghostStalk, 0.7);
+        this.playOneShot(this.sfxUrls.ghostStalk, 0.95);
     }
 
     triggerDeath() {
@@ -261,15 +312,15 @@ class SoundManager {
         if (!this.sfxEnabled) return;
 
         // Demon defeat scream + deep cinematic sub-bass boom
-        this.playOneShot(this.sfxUrls.playerDeath, 0.9);
+        this.playOneShot(this.sfxUrls.playerDeath, 1.0);
         setTimeout(() => {
-            this.playOneShot(this.sfxUrls.cineBoom, 0.95);
+            this.playOneShot(this.sfxUrls.cineBoom, 1.0);
         }, 180);
     }
 
     triggerCineBoom() {
         if (!this.sfxEnabled) return;
-        this.playOneShot(this.sfxUrls.cineBoom, 0.85);
+        this.playOneShot(this.sfxUrls.cineBoom, 0.95);
     }
 
     playOneShot(url, volMult = 1.0) {
@@ -284,13 +335,15 @@ class SoundManager {
     // --- Web Audio Procedural Chimes ---
 
     getAudioContext() {
-        if (!this.audioCtx) {
-            const AudioCtx = window.AudioContext || window.webkitAudioContext;
-            if (AudioCtx) this.audioCtx = new AudioCtx();
-        }
-        if (this.audioCtx && this.audioCtx.state === 'suspended') {
-            this.audioCtx.resume();
-        }
+        try {
+            if (!this.audioCtx) {
+                const AudioCtx = window.AudioContext || window.webkitAudioContext;
+                if (AudioCtx) this.audioCtx = new AudioCtx();
+            }
+            if (this.audioCtx && this.audioCtx.state === 'suspended') {
+                this.audioCtx.resume().catch(() => {});
+            }
+        } catch {}
         return this.audioCtx;
     }
 
@@ -308,7 +361,7 @@ class SoundManager {
                 osc.frequency.setValueAtTime(62, startTime);
                 osc.frequency.exponentialRampToValueAtTime(26, startTime + 0.14);
 
-                gain.gain.setValueAtTime(0.35 * intensity * this.masterVolume, startTime);
+                gain.gain.setValueAtTime(0.65 * intensity * this.masterVolume, startTime);
                 gain.gain.exponentialRampToValueAtTime(0.001, startTime + 0.15);
 
                 osc.connect(gain);
@@ -331,7 +384,7 @@ class SoundManager {
                 osc.type = 'triangle';
                 const t = ctx.currentTime + i * 0.08;
                 osc.frequency.setValueAtTime(freq, t);
-                gain.gain.setValueAtTime(0.28 * this.masterVolume, t);
+                gain.gain.setValueAtTime(0.45 * this.masterVolume, t);
                 gain.gain.exponentialRampToValueAtTime(0.001, t + 0.4);
 
                 osc.connect(gain);
@@ -354,7 +407,7 @@ class SoundManager {
             const t = ctx.currentTime;
             osc.frequency.setValueAtTime(320, t);
             osc.frequency.exponentialRampToValueAtTime(640, t + 0.2);
-            gain.gain.setValueAtTime(0.24 * this.masterVolume, t);
+            gain.gain.setValueAtTime(0.42 * this.masterVolume, t);
             gain.gain.exponentialRampToValueAtTime(0.001, t + 0.22);
             osc.connect(gain);
             gain.connect(ctx.destination);
@@ -375,7 +428,7 @@ class SoundManager {
             const t = ctx.currentTime;
             osc.frequency.setValueAtTime(860, t);
             osc.frequency.exponentialRampToValueAtTime(130, t + 0.35);
-            gain.gain.setValueAtTime(0.5 * this.masterVolume, t);
+            gain.gain.setValueAtTime(0.75 * this.masterVolume, t);
             gain.gain.exponentialRampToValueAtTime(0.001, t + 0.38);
             osc.connect(gain);
             gain.connect(ctx.destination);
@@ -404,7 +457,7 @@ class SoundManager {
                 oscLow.type = 'triangle';
                 oscLow.frequency.setValueAtTime(140, t);
                 oscLow.frequency.exponentialRampToValueAtTime(38, t + 0.12);
-                gainLow.gain.setValueAtTime(0.48 * this.masterVolume, t);
+                gainLow.gain.setValueAtTime(0.75 * this.masterVolume, t);
                 gainLow.gain.exponentialRampToValueAtTime(0.001, t + 0.14);
                 oscLow.connect(gainLow);
                 gainLow.connect(ctx.destination);
@@ -416,7 +469,7 @@ class SoundManager {
                 oscHigh.type = 'sine';
                 oscHigh.frequency.setValueAtTime(680, t);
                 oscHigh.frequency.exponentialRampToValueAtTime(220, t + 0.08);
-                gainHigh.gain.setValueAtTime(0.25 * this.masterVolume, t);
+                gainHigh.gain.setValueAtTime(0.4 * this.masterVolume, t);
                 gainHigh.gain.exponentialRampToValueAtTime(0.001, t + 0.09);
                 oscHigh.connect(gainHigh);
                 gainHigh.connect(ctx.destination);
@@ -429,7 +482,7 @@ class SoundManager {
                 osc.type = 'triangle';
                 osc.frequency.setValueAtTime(520, t);
                 osc.frequency.exponentialRampToValueAtTime(260, t + 0.05);
-                gain.gain.setValueAtTime(0.32 * this.masterVolume, t);
+                gain.gain.setValueAtTime(0.55 * this.masterVolume, t);
                 gain.gain.exponentialRampToValueAtTime(0.001, t + 0.06);
                 osc.connect(gain);
                 gain.connect(ctx.destination);
@@ -442,7 +495,7 @@ class SoundManager {
                 oscClick.type = 'triangle';
                 oscClick.frequency.setValueAtTime(380, t);
                 oscClick.frequency.exponentialRampToValueAtTime(90, t + 0.06);
-                gainClick.gain.setValueAtTime(0.38 * this.masterVolume, t);
+                gainClick.gain.setValueAtTime(0.6 * this.masterVolume, t);
                 gainClick.gain.exponentialRampToValueAtTime(0.001, t + 0.07);
                 oscClick.connect(gainClick);
                 gainClick.connect(ctx.destination);
@@ -455,7 +508,7 @@ class SoundManager {
                 snap.type = 'sine';
                 snap.frequency.setValueAtTime(950, t);
                 snap.frequency.exponentialRampToValueAtTime(300, t + 0.025);
-                snapGain.gain.setValueAtTime(0.2 * this.masterVolume, t);
+                snapGain.gain.setValueAtTime(0.35 * this.masterVolume, t);
                 snapGain.gain.exponentialRampToValueAtTime(0.001, t + 0.03);
                 snap.connect(snapGain);
                 snapGain.connect(ctx.destination);
@@ -483,7 +536,7 @@ class SoundManager {
             osc.frequency.linearRampToValueAtTime(460, t + 0.05);
 
             gain.gain.setValueAtTime(0.001, t);
-            gain.gain.linearRampToValueAtTime(0.12 * this.masterVolume, t + 0.015);
+            gain.gain.linearRampToValueAtTime(0.22 * this.masterVolume, t + 0.015);
             gain.gain.exponentialRampToValueAtTime(0.001, t + 0.08);
 
             osc.connect(gain);
@@ -505,7 +558,7 @@ class SoundManager {
             osc.type = 'triangle';
             osc.frequency.setValueAtTime(280, t);
             osc.frequency.exponentialRampToValueAtTime(540, t + 0.07);
-            gain.gain.setValueAtTime(0.28 * this.masterVolume, t);
+            gain.gain.setValueAtTime(0.48 * this.masterVolume, t);
             gain.gain.exponentialRampToValueAtTime(0.001, t + 0.1);
             osc.connect(gain);
             gain.connect(ctx.destination);
@@ -520,3 +573,6 @@ class SoundManager {
 }
 
 export const soundManager = new SoundManager();
+if (typeof window !== 'undefined') {
+    window.soundManager = soundManager;
+}

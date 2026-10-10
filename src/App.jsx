@@ -199,27 +199,20 @@ export default function App() {
     }
   }, [settings, screen]);
 
-  // Title ambience autoplay on first user interaction
+  // Unlock audio immediately upon any user gesture anywhere in the iframe
   useEffect(() => {
-    const handleFirstInteraction = () => {
+    const handleUserGesture = () => {
       soundManager.unlock();
       soundManager.setSettings(settings);
-      if (screen === "game") {
-        soundManager.playGameAmbience();
-      } else {
-        soundManager.playMenuAmbience();
-      }
-      window.removeEventListener("click", handleFirstInteraction);
-      window.removeEventListener("keydown", handleFirstInteraction);
     };
-    window.addEventListener("click", handleFirstInteraction);
-    window.addEventListener("keydown", handleFirstInteraction);
+
+    const events = ["pointerdown", "mousedown", "touchstart", "keydown", "click"];
+    events.forEach((ev) => window.addEventListener(ev, handleUserGesture, { passive: true }));
 
     return () => {
-      window.removeEventListener("click", handleFirstInteraction);
-      window.removeEventListener("keydown", handleFirstInteraction);
+      events.forEach((ev) => window.removeEventListener(ev, handleUserGesture));
     };
-  }, [screen, settings]);
+  }, [settings]);
 
   // Global Button Click & Hover Audio Feedback
   useEffect(() => {
@@ -415,10 +408,6 @@ export default function App() {
                 >
                   PLAY
                 </button>
-              </div>
-
-              <div className="landing-footer-hint">
-                PC EDITION &bull; HEADPHONES RECOMMENDED
               </div>
             </main>
           )}
@@ -902,7 +891,7 @@ export default function App() {
           {gameOver && (
             <div className="modal-overlay death-screen">
               <img
-                src="/assets/phantom_portrait.jpg"
+                src={assets.getPhantomPortrait()}
                 alt="The Phantom"
                 className="death-portrait"
               />

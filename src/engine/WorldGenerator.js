@@ -92,44 +92,51 @@ export class WorldGenerator {
         const worldStartY = cy * CHUNK_SIZE;
 
         // Sacred Sanctuary Generation: Guaranteed Starter Shrine at spawn + 1 Shrine per 2x2 macro grid (1600x1600px)
-        let hasShrine = false;
-        let shrineX = 0;
-        let shrineY = 0;
-        let shrineTemplate = null;
+        // Shrines spawn strictly as single standalone safe spots (never in pairs, minimum ~750px spacing guaranteed)
+        const shrinesInChunk = [];
 
-        const macroGridSize = 2; // 2x2 chunks = 1600x1600px (dense, reliable sanctuary distribution)
+        const macroGridSize = 2; // 2x2 chunks = 1600x1600px
         const macroX = Math.floor(cx / macroGridSize);
         const macroY = Math.floor(cy / macroGridSize);
-        const macroSeed = hash2(macroX, macroY, 8492);
-        const macroRng = createRNG(macroSeed);
 
-        const sChunkOffsetX = Math.floor(macroRng() * macroGridSize);
-        const sChunkOffsetY = Math.floor(macroRng() * macroGridSize);
+        let macroShrineX, macroShrineY, macroShrineTemplate;
 
-        const targetShrineCX = macroX * macroGridSize + sChunkOffsetX;
-        const targetShrineCY = macroY * macroGridSize + sChunkOffsetY;
+        if (macroX === 0 && macroY === 0) {
+            // Introductory Sanctuary near spawn (standalone, safe distance)
+            macroShrineX = 380;
+            macroShrineY = 320;
+            macroShrineTemplate = SHRINE_TEMPLATES[1]; // Sanctuary of Light
+        } else {
+            const macroSeed = hash2(macroX, macroY, 8492);
+            const macroRng = createRNG(macroSeed);
+            const macroOriginX = macroX * macroGridSize * CHUNK_SIZE;
+            const macroOriginY = macroY * macroGridSize * CHUNK_SIZE;
 
-        if (cx === 0 && cy === 0) {
-            // Guaranteed Introductory Shrine: Sanctuary of Light just northeast of spawn (distance ~420px)
-            hasShrine = true;
-            shrineX = 350;
-            shrineY = -240;
-            shrineTemplate = SHRINE_TEMPLATES[1]; // Sanctuary of Light
-        } else if (cx === targetShrineCX && cy === targetShrineCY) {
-            hasShrine = true;
-            shrineX = worldStartX + 160 + macroRng() * (CHUNK_SIZE - 320);
-            shrineY = worldStartY + 160 + macroRng() * (CHUNK_SIZE - 320);
-            shrineTemplate = SHRINE_TEMPLATES[Math.floor(macroRng() * SHRINE_TEMPLATES.length)];
+            // Placed within the central 1000px region of the 1600px macro cell (300px margin from macro borders)
+            macroShrineX = Math.round(macroOriginX + 300 + macroRng() * 1000);
+            macroShrineY = Math.round(macroOriginY + 300 + macroRng() * 1000);
+            const templateIdx = Math.floor(macroRng() * SHRINE_TEMPLATES.length);
+            macroShrineTemplate = SHRINE_TEMPLATES[templateIdx];
         }
 
-        if (hasShrine && shrineTemplate) {
+        // Check if this macro shrine falls within the current chunk (cx, cy)
+        const shrineCX = Math.floor(macroShrineX / CHUNK_SIZE);
+        const shrineCY = Math.floor(macroShrineY / CHUNK_SIZE);
+
+        if (cx === shrineCX && cy === shrineCY) {
+            shrinesInChunk.push({
+                x: macroShrineX,
+                y: macroShrineY,
+                template: macroShrineTemplate
+            });
+
             objects.push({
-                x: shrineX,
-                y: shrineY,
-                r: shrineTemplate.radius,
-                spriteKey: shrineTemplate.key,
+                x: macroShrineX,
+                y: macroShrineY,
+                r: macroShrineTemplate.radius,
+                spriteKey: macroShrineTemplate.key,
                 isShrine: true,
-                shrineName: shrineTemplate.name,
+                shrineName: macroShrineTemplate.name,
                 activated: false,
                 hasTorch: false,
                 type: 'shrine'
@@ -162,8 +169,9 @@ export class WorldGenerator {
             // Safe clearing around spawn (0, 0)
             if (Math.hypot(x, y) < 220) continue;
 
-            // Safe clearing around shrine if present in chunk
-            if (hasShrine && Math.hypot(x - shrineX, y - shrineY) < 85) continue;
+            // Safe clearing around all shrines in chunk (110px radius sacred clearing)
+            const nearShrine = shrinesInChunk.some(s => Math.hypot(x - s.x, y - s.y) < 110);
+            if (nearShrine) continue;
 
             const roll = rng();
             let spriteKey;

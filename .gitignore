@@ -8,8 +8,10 @@ pnpm-debug.log*
 lerna-debug.log*
 
 node_modules
+# Build and distribution staging
 dist
 dist-ssr
+the woods/
 *.local
 
 # Editor directories and files
@@ -23,7 +25,7 @@ dist-ssr
 *.sln
 *.sw?
 
-# Raw archives and local art assets
+# Raw archives, store assets, and local art assets
 *.zip
 *.rar
 *.tar.gz
@@ -31,3 +33,4 @@ art_source/
 raw_assets/
 assessts/
 scratch/
+itch_assets/
